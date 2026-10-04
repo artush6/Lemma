@@ -6,18 +6,73 @@ import 'katex/dist/katex.min.css';
 import functionPlot from 'function-plot';
 import { snippets, expand } from '@/lib/editor/snippets';
 
-function renderLatex(source: string, displayMode: boolean) { try { return katex.renderToString(source || '\\;',{displayMode,throwOnError:false,trust:false,strict:'ignore'}); } catch { return ''; } }
+type SourceRange = { start: number; end: number };
+function groupEnd(source: string, start: number, open = '{', close = '}') {
+ if (source[start] !== open) return -1;
+ let depth = 0;
+ for (let index = start; index < source.length; index++) {
+  if (source[index] === open && source[index - 1] !== '\\') depth++;
+  if (source[index] === close && source[index - 1] !== '\\' && --depth === 0) return index;
+ }
+ return -1;
+}
+function focusRange(source: string, selectionStart: number, selectionEnd: number): SourceRange | null {
+ if (!source.length) return null;
+ if (selectionStart !== selectionEnd) return { start: selectionStart, end: selectionEnd };
+ const beforeCaret = source.slice(0, selectionStart).match(/\\[a-zA-Z]*$/)?.[0];
+ let index = beforeCaret ? selectionStart - beforeCaret.length : Math.max(0, Math.min(selectionStart - 1, source.length - 1));
+ if (/\s/.test(source[index]) && index > 0) index--;
+ let start = index, end = index + 1;
+ if (source[index] === '}') {
+  for (let cursor = index; cursor >= 0; cursor--) if (source[cursor] === '{' && groupEnd(source, cursor) === index) { start = cursor + 1; end = index; break; }
+ } else if (source[index] === '{') {
+  const close = groupEnd(source, index);
+  if (close > index) { start = index + 1; end = close; }
+ } else if (source[index] === '\\') {
+  const command = source.slice(index).match(/^\\[a-zA-Z]+|^\\./)?.[0];
+  if (command) {
+   start = index; end = index + command.length;
+   let next = end;
+   while (/\s/.test(source[next] || '')) next++;
+   if (/^\\(?:dfrac|tfrac|frac|binom|dbinom|tbinom)$/.test(command)) {
+    const firstEnd = groupEnd(source, next);
+    const secondStart = firstEnd < 0 ? -1 : firstEnd + 1 + (source.slice(firstEnd + 1).match(/^\s*/)?.[0].length || 0);
+    const secondEnd = secondStart >= 0 ? groupEnd(source, secondStart) : -1;
+    if (secondEnd >= 0) end = secondEnd + 1;
+   } else if (/^\\(?:sqrt|text|mathrm|mathbf|mathit|mathbb|mathcal|mathsf|mathtt|operatorname|overline|underline|boxed|hat|bar|vec|dot|ddot)$/.test(command)) {
+    if (command === '\\sqrt' && source[next] === '[') {
+     const optionalEnd = groupEnd(source, next, '[', ']');
+     if (optionalEnd >= 0) next = optionalEnd + 1;
+    }
+    const argumentEnd = groupEnd(source, next);
+    if (argumentEnd >= 0) end = argumentEnd + 1;
+   }
+  }
+ } else if (/[a-zA-Z0-9]/.test(source[index])) {
+  while (start > 0 && /[a-zA-Z0-9]/.test(source[start - 1])) start--;
+  while (end < source.length && /[a-zA-Z0-9]/.test(source[end])) end++;
+ }
+ return end > start ? { start, end } : null;
+}
+function renderLatex(source: string, displayMode: boolean, focus?: SourceRange | null) {
+ try {
+  const marked = focus && focus.start >= 0 && focus.end <= source.length && focus.end > focus.start
+   ? `${source.slice(0, focus.start)}\\htmlClass{lemma-active-focus}{${source.slice(focus.start, focus.end)}}${source.slice(focus.end)}`
+   : source;
+  return katex.renderToString(marked || '\\;', { displayMode, throwOnError: false, trust: context => context.command === '\\htmlClass' && context.class === 'lemma-active-focus', strict: 'ignore' });
+ } catch { return ''; }
+}
 const graphColors=['#3478d4','#d45555','#3a9b72','#955ec7','#db8d2e','#2797a4'];
 function EquationView({node,updateAttributes}:NodeViewProps) {
- const [editing,setEditing]=useState(false); const [value,setValue]=useState(String(node.attrs.latex||'')); const [query,setQuery]=useState(''); const [suggestIndex,setSuggestIndex]=useState(0); const [fields,setFields]=useState<[number,number][]>([]); const [fieldIndex,setFieldIndex]=useState(0); const input=useRef<HTMLTextAreaElement>(null); const matches=snippets.filter(s=>s.label.toLowerCase().startsWith(query.toLowerCase()));
- const beginEdit=()=>{setValue(String(node.attrs.latex||''));setEditing(true)};
+ const [editing,setEditing]=useState(false); const [value,setValue]=useState(String(node.attrs.latex||'')); const [query,setQuery]=useState(''); const [suggestIndex,setSuggestIndex]=useState(0); const [fields,setFields]=useState<[number,number][]>([]); const [fieldIndex,setFieldIndex]=useState(0); const [selection,setSelection]=useState<SourceRange>({start:0,end:0}); const input=useRef<HTMLTextAreaElement>(null); const matches=snippets.filter(s=>s.label.toLowerCase().startsWith(query.toLowerCase()));
+ const beginEdit=()=>{const latex=String(node.attrs.latex||'');setValue(latex);setSelection(focusRange(latex,0,0)||{start:0,end:0});setEditing(true)};
  const block=node.type.name==='mathBlock'; const EditorShell=block?'div':'span'; const LabelRow=block?'div':'span'; const Preview=block?'div':'span';
  return <NodeViewWrapper as={block?'div':'span'} className={block?'equation-wrap':'inline-equation-wrap'}>
   {editing ? <EditorShell className={block?'equation-editor':'inline-equation-editor'} contentEditable={false}>
-   <LabelRow className="equation-editor-label"><span>LATEX</span><span>PREVIEW</span></LabelRow>
-   <textarea ref={input} autoFocus value={value} onChange={e=>{const next=e.target.value;setValue(next);const before=next.slice(0,e.target.selectionStart);const match=before.match(/\\([a-zA-Z]*)$/);setQuery(match&&match[1]?`\\${match[1]}`:'');setSuggestIndex(0)}} onKeyDown={e=>{if(query&&matches.length&&(e.key==='Enter'||e.key==='Tab')){e.preventDefault();const before=value.slice(0,e.currentTarget.selectionStart);const match=before.match(/\\([a-zA-Z]*)$/);const start=match?e.currentTarget.selectionStart-match[0].length:e.currentTarget.selectionStart;const expanded=expand(matches[suggestIndex].template,start);const after=value.slice(e.currentTarget.selectionEnd);const next=value.slice(0,start)+expanded.text+after;setValue(next);setQuery('');setFields(expanded.fields);setFieldIndex(0);requestAnimationFrame(()=>{input.current?.focus();if(expanded.fields.length)input.current?.setSelectionRange(...expanded.fields[0]);else input.current?.setSelectionRange(start+expanded.text.length,start+expanded.text.length)});return}if(query&&matches.length&&e.key==='ArrowDown'){e.preventDefault();setSuggestIndex(i=>Math.min(i+1,matches.length-1));return}if(query&&matches.length&&e.key==='ArrowUp'){e.preventDefault();setSuggestIndex(i=>Math.max(0,i-1));return}if(fields.length&&e.key==='Tab'){e.preventDefault();const next=(fieldIndex+1)%fields.length;setFieldIndex(next);input.current?.setSelectionRange(...fields[next]);return}if(e.key==='Escape'){e.preventDefault();setEditing(false);} if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();updateAttributes({latex:value});setEditing(false);}}} placeholder="Type a mathematical expression…" />
+   <LabelRow className="equation-editor-label"><span>LATEX</span><span>PREVIEW · CURRENT PART HIGHLIGHTED</span></LabelRow>
+   <textarea ref={input} autoFocus value={value} onSelect={e=>{const target=e.currentTarget;setSelection(focusRange(value,target.selectionStart,target.selectionEnd)||{start:0,end:0})}} onChange={e=>{const next=e.target.value;setValue(next);setSelection(focusRange(next,e.target.selectionStart,e.target.selectionEnd)||{start:0,end:0});const before=next.slice(0,e.target.selectionStart);const match=before.match(/\\([a-zA-Z]*)$/);setQuery(match&&match[1]?`\\${match[1]}`:'');setSuggestIndex(0)}} onKeyDown={e=>{if(query&&matches.length&&(e.key==='Enter'||e.key==='Tab')){e.preventDefault();const before=value.slice(0,e.currentTarget.selectionStart);const match=before.match(/\\([a-zA-Z]*)$/);const start=match?e.currentTarget.selectionStart-match[0].length:e.currentTarget.selectionStart;const expanded=expand(matches[suggestIndex].template,start);const after=value.slice(e.currentTarget.selectionEnd);const next=value.slice(0,start)+expanded.text+after;setValue(next);setQuery('');setFields(expanded.fields);setFieldIndex(0);requestAnimationFrame(()=>{input.current?.focus();if(expanded.fields.length)input.current?.setSelectionRange(...expanded.fields[0]);else input.current?.setSelectionRange(start+expanded.text.length,start+expanded.text.length)});return}if(query&&matches.length&&e.key==='ArrowDown'){e.preventDefault();setSuggestIndex(i=>Math.min(i+1,matches.length-1));return}if(query&&matches.length&&e.key==='ArrowUp'){e.preventDefault();setSuggestIndex(i=>Math.max(0,i-1));return}if(fields.length&&e.key==='Tab'){e.preventDefault();const next=(fieldIndex+1)%fields.length;setFieldIndex(next);input.current?.setSelectionRange(...fields[next]);return}if(e.key==='Escape'){e.preventDefault();setEditing(false);} if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();updateAttributes({latex:value});setEditing(false);}}} placeholder="Type a mathematical expression…" />
    {query&&matches.length>0&&<div className="latex-suggestions">{matches.slice(0,5).map((item,index)=><button type="button" key={item.label} className={index===suggestIndex?'active':''} onMouseDown={e=>{e.preventDefault();const caret=input.current?.selectionStart||value.length;const before=value.slice(0,caret);const match=before.match(/\\([a-zA-Z]*)$/);const start=match?caret-match[0].length:caret;const expanded=expand(item.template,start);const next=value.slice(0,start)+expanded.text+value.slice(input.current?.selectionEnd||caret);setValue(next);setQuery('');setFields(expanded.fields);requestAnimationFrame(()=>{input.current?.focus();if(expanded.fields.length)input.current?.setSelectionRange(...expanded.fields[0])})}}><code>{item.label}</code><span>{item.template.replace(/[«»]/g,'')}</span></button>)}</div>}
-   <Preview className="equation-live-preview" dangerouslySetInnerHTML={{__html:renderLatex(value,block)}} />
+   <Preview className="equation-live-preview" dangerouslySetInnerHTML={{__html:renderLatex(value,block,selection)}} />
    <button className="equation-done" onClick={()=>{updateAttributes({latex:value});setEditing(false);}}>Done <kbd>⌘ ↵</kbd></button>
   </EditorShell> : <span className={block?'equation-render':'inline-equation-render'} onClick={beginEdit}>{node.attrs.latex? <span dangerouslySetInnerHTML={{__html:renderLatex(String(node.attrs.latex),block)}}/> : <span className="equation-placeholder">{block?'Click to write an equation…':'∑ add inline equation'}</span>}</span>}
  </NodeViewWrapper>
