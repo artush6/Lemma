@@ -8,7 +8,7 @@ Lemma is a focused study workspace for computer science students: organize notes
 2. Copy `.env.example` to `.env.local`.
 3. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` from your Supabase project.
 4. Apply every SQL migration in `supabase/migrations/` in timestamp order.
-5. Enable email sign-in links in Supabase Auth and add the local and production URLs to its redirect allow list.
+5. Enable email sign-in links in Supabase Auth and add the local and production URLs to its redirect allow list. To use “Continue as guest,” also enable anonymous sign-ins in the Supabase Auth settings.
 6. Run `npm run dev` and open http://localhost:3000.
 
 The browser only uses the public publishable key. Never put a Supabase secret or service-role key in a `NEXT_PUBLIC_*` variable. Without Supabase settings, Lemma runs locally and saves drafts in this browser.
@@ -20,7 +20,7 @@ The browser only uses the public publishable key. Never put a Supabase secret or
 - Paste from Notion or another rich-text app to keep common structure while dropping copied styling. Tables become readable text rows.
 - Each note contains separately selectable pages. Use the Pages list in the left rail to add, switch, or delete a page. The page ID is in the URL, so refresh and browser navigation return to that page.
 - Search checks note titles and page text. The contents rail jumps to a heading in the current page.
-- Share links are read-only and use a random token. Private notes require email sign-in when Supabase is configured.
+- Share links are read-only and use a random token. Supabase workspaces can use an email sign-in link or a persistent anonymous guest session. Guest workspaces are tied to the browser session on that device; use email sign-in when you need access across devices.
 - Use Read mode, Focus mode (`⌘ ⇧ F`), or Export → PDF / Print to study and share your work.
 
 ## Data and privacy

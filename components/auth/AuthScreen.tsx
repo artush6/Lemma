@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { ArrowRight, Check, Sigma } from 'lucide-react';
+import { ArrowRight, Check, Sigma, UserRound } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 
 export default function AuthScreen() {
@@ -9,6 +9,7 @@ export default function AuthScreen() {
  const [message,setMessage]=useState('');
  const [error,setError]=useState('');
  const [sending,setSending]=useState(false);
+ const [guestLoading,setGuestLoading]=useState(false);
  const submit=async(event:FormEvent<HTMLFormElement>)=>{
   event.preventDefault();
   if(!supabase){setError('Cloud sync is not configured. Add the Supabase URL and publishable key to continue.');return;}
@@ -18,5 +19,12 @@ export default function AuthScreen() {
   if(error){setError(error.message);return;}
   setMessage('Check your inbox for a secure sign-in link.');
  };
- return <main className="auth-screen"><div className="auth-brand"><span className="brand-mark"><Sigma size={19}/></span><span>lemma</span></div><section className="auth-panel"><span className="auth-eyebrow">YOUR CS STUDY SPACE</span><h1>Pick up where<br/>your thinking left off.</h1><p>Your notes, classes, and pages stay yours and follow you between sessions.</p><form onSubmit={submit}><label htmlFor="auth-email">University or personal email</label><div className="auth-input"><input id="auth-email" type="email" autoComplete="email" required value={email} onChange={event=>setEmail(event.target.value)} placeholder="you@university.edu"/><button type="submit" disabled={sending}>{sending?'Sending…':<>Continue <ArrowRight size={16}/></>}</button></div></form>{message&&<div className="auth-message"><Check size={15}/>{message}</div>}{error&&<p className="auth-error" role="alert">{error}</p>}<small>No password to remember. We’ll email you a one-time sign-in link.</small></section><div className="auth-equation" aria-hidden="true"><span>∑</span><span>f : X → Y</span><span>∫<sub>a</sub><sup>b</sup> f(x) dx</span><span>O(n log n)</span><span>∇ × E = −∂B/∂t</span></div><footer>Made for the work between lectures.</footer></main>;
+ const continueAsGuest=async()=>{
+  if(!supabase){setError('Cloud sync is not configured. Your notes will stay in this browser.');return;}
+  setGuestLoading(true);setError('');setMessage('');
+  const {error}=await supabase.auth.signInAnonymously();
+  setGuestLoading(false);
+  if(error)setError(`${error.message} Guest access may need to be enabled in Supabase Auth settings.`);
+ };
+ return <main className="auth-screen"><div className="auth-brand"><span className="brand-mark"><Sigma size={19}/></span><span>lemma</span></div><section className="auth-panel"><span className="auth-eyebrow">YOUR CS STUDY SPACE</span><h1>Pick up where<br/>your thinking left off.</h1><p>Your notes, classes, and pages stay yours and follow you between sessions.</p><form onSubmit={submit}><label htmlFor="auth-email">University or personal email</label><div className="auth-input"><input id="auth-email" type="email" autoComplete="email" required value={email} onChange={event=>setEmail(event.target.value)} placeholder="you@university.edu"/><button type="submit" disabled={sending||guestLoading}>{sending?'Sending…':<>Continue <ArrowRight size={16}/></>}</button></div></form><button className="guest-sign-in" type="button" onClick={continueAsGuest} disabled={sending||guestLoading}>{guestLoading?'Creating a private workspace…':<><UserRound size={16}/> Continue as guest</>}</button>{message&&<div className="auth-message"><Check size={15}/>{message}</div>}{error&&<p className="auth-error" role="alert">{error}</p>}<small>Email sign-in links and guest sessions stay signed in on this device.</small></section><div className="auth-equation" aria-hidden="true"><span>∑</span><span>f : X → Y</span><span>∫<sub>a</sub><sup>b</sup> f(x) dx</span><span>O(n log n)</span><span>∇ × E = −∂B/∂t</span></div><footer>Made for the work between lectures.</footer></main>;
 }

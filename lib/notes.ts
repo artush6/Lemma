@@ -31,7 +31,7 @@ export const repository = {
  async removeFolder(id: string) { if (!supabase) throw Error('Cloud is not configured'); const { error } = await supabase.from('folders').delete().eq('id', id); if (error) throw error; },
  async save(note: Note) { if (!supabase) throw Error('Cloud is not configured'); const { error } = await supabase.from('notes').upsert(note); if (error) throw error; },
  async remove(id: string) { if (!supabase) throw Error('Cloud is not configured'); const { error } = await supabase.from('notes').delete().eq('id', id); if (error) throw error; },
- async history(id: string): Promise<Version[]> { if (!supabase) throw Error('Cloud is not configured'); const { data, error } = await supabase.from('note_versions').select('*').eq('note_id', id).order('created_at', { ascending: false }); if (error) throw error; return data; },
+ async history(id: string): Promise<Version[]> { if (!supabase) throw Error('Cloud is not configured'); const { data, error } = await supabase.from('note_versions').select('*').eq('note_id', id).order('created_at', { ascending: false }).limit(25); if (error) throw error; return data; },
  async snapshot(note: Note) { if (!supabase) throw Error('Cloud is not configured'); const { error } = await supabase.from('note_versions').insert({ note_id: note.id, title: note.title, content: note.content, pages: note.pages || pagesFor(note) }); if (error) throw error; },
 };
 export function initialTitle(content: JSONContent): string { const text = (n: JSONContent): string => n.text || (n.content || []).map(text).join(' '); return text(content).trim().slice(0, 70) || 'Untitled'; }
