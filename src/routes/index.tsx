@@ -13,5 +13,9 @@ export const Route = createFileRoute("/")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: () => <ClientOnly fallback={null}><Editor /></ClientOnly>,
+  component: () => (
+    <ClientOnly fallback={null}>
+      <Editor />
+    </ClientOnly>
+  ),
 });

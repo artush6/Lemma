@@ -6,7 +6,30 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
+// Keep the existing Vercel integration's public credentials working after
+// the Next.js → Vite migration. Only these browser-safe values are bundled.
+const publicEnv = {
+  VITE_SUPABASE_URL:
+    process.env.VITE_SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.SUPABASE_URL,
+  VITE_SUPABASE_PUBLISHABLE_KEY:
+    process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.SUPABASE_PUBLISHABLE_KEY,
+};
+
 export default defineConfig({
+  vite: {
+    define: Object.fromEntries(
+      Object.entries(publicEnv)
+        .filter(([, value]) => Boolean(value))
+        .map(([key, value]) => [`import.meta.env.${key}`, JSON.stringify(value)]),
+    ),
+  },
+  // Generate Vercel Functions rather than the default Cloudflare bundle.
+  // Lovable's own builds still select their platform-specific preset.
+  nitro: { preset: "vercel" },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this

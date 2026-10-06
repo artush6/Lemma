@@ -1,4 +1,5 @@
 # Roadmap
+
 - [x] Keep the block insertion menu clear of the current typing line
 - [ ] Push finished changes to a new GitHub branch (requires an accessible GitHub connection)
 - [x] Align folder and note labels; replace chunky folder tiles with compact, left-aligned rows

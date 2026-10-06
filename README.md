@@ -21,6 +21,27 @@ npm i
 npm run dev
 ```
 
+## Formatting
+
+Run `npm run format` to format the source and configuration files, and
+`npm run format:check` to check them without making changes. GitHub Actions
+runs the formatting check on pushes and pull requests. Generated files and
+build output are excluded.
+
+## Vercel deployment
+
+The app uses TanStack Start and Nitro's Vercel preset. `vercel.json` selects
+the TanStack Start framework so Vercel does not use the previous Next.js preset.
+Deploy the production branch through the existing Vercel GitHub integration.
+
+Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` for each deployment
+environment. The build also accepts the existing Vercel integration's
+`NEXT_PUBLIC_SUPABASE_URL` / `SUPABASE_URL` and
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` / `SUPABASE_PUBLISHABLE_KEY` names.
+Only the public URL and publishable key are bundled into the frontend;
+server secrets must remain unprefixed. Copy `.env.example` to `.env.local`
+for local development.
+
 ## Built with
 
 - TanStack Start

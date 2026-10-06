@@ -1,5 +1,5 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import type { Editor } from '@tiptap/react';
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import type { Editor } from "@tiptap/react";
 
 export default function BlockMenu({ editor, children }: { editor: Editor; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -23,15 +23,19 @@ export default function BlockMenu({ editor, children }: { editor: Editor; childr
     update();
     const observer = new ResizeObserver(update);
     if (ref.current) observer.observe(ref.current);
-    editor.on('selectionUpdate', update);
-    window.addEventListener('scroll', update, true);
-    window.addEventListener('resize', update);
+    editor.on("selectionUpdate", update);
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
     return () => {
       observer.disconnect();
-      editor.off('selectionUpdate', update);
-      window.removeEventListener('scroll', update, true);
-      window.removeEventListener('resize', update);
+      editor.off("selectionUpdate", update);
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
     };
   }, [editor]);
-  return <div ref={ref} className="slash-menu caret-block-menu" style={position}>{children}</div>;
+  return (
+    <div ref={ref} className="slash-menu caret-block-menu" style={position}>
+      {children}
+    </div>
+  );
 }
