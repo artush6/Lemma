@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791288784416,
+      "tag": "0000_lemma_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791291203860,
+      "tag": "0001_tags_and_space_colors",
+      "breakpoints": true
+    }
+  ]
+}

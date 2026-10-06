@@ -1,0 +1,27 @@
+# Roadmap
+- [x] Keep the block insertion menu clear of the current typing line
+- [ ] Push finished changes to a new GitHub branch (requires an accessible GitHub connection)
+- [x] Align folder and note labels; replace chunky folder tiles with compact, left-aligned rows
+- [x] Move graph composer into a side panel while retaining the graph in the note
+- [x] Align sidebar controls and add compact equation editing popups
+- [x] Verify graph and equation editing with a throwaway note
+- [x] Unify note/folder icons and restore appearance icons
+- [x] Replace the outline panel with a compact Notion-style outline
+- [x] Right-align page count, remove footer branding, and clarify search styling
+- [x] Group toolbar actions and make slash search text and shortcuts readable
+- [x] Verify the latest refinements in a temporary note
+- [x] Bring Lemma into Lovable (code, database, sign-in)
+- [x] Fix: runaway note reloading loop; graphs not drawing
+- [x] Notion-like visual layer, true-black dark, visible graph axes
+- [x] Middle note list grouped by date (superseded by unified sidebar)
+- [x] Sidebar Spaces with colour dots (click to change) + Tags filter; tags under title
+- [x] Notion-style icon picker
+- [x] Word-style A4 sheets with automatic page breaks
+- [x] Focus mode: chrome hidden, earlier blocks faded
+- [x] Copy/paste of equations & graphs; Notion/markdown paste with $ / $$ → real math
+- [x] Click in equation preview jumps to the LaTeX code
+- [x] Graph Composer: rows, show/hide, f(x)=, y=, f'(x), F(x) primitive, d/dx, int, viewport with π, options
+- [x] Remove Pages and duplicate note column; unify nested folder navigation and All notes browser
+- [x] Add categorized, persistent professional settings
+- [x] Separate note metadata from A4 content; correct full-sheet pagination, footer and sticky toolbar
+- [x] Render graph labels in LaTeX and verify requested flows using throwaway notes
