@@ -45,3 +45,6 @@ next-env.d.ts
 
 # Supabase CLI workspace state
 /supabase/.temp/
+
+# Expo local workspace state
+.expo/
