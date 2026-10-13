@@ -10,13 +10,13 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 // the Next.js → Vite migration. Only these browser-safe values are bundled.
 const publicEnv = {
   VITE_SUPABASE_URL:
-    process.env.VITE_SUPABASE_URL ||
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    process.env.SUPABASE_URL,
+    process.env["VITE_SUPABASE_URL"] ||
+    process.env["NEXT_PUBLIC_SUPABASE_URL"] ||
+    process.env["SUPABASE_URL"],
   VITE_SUPABASE_PUBLISHABLE_KEY:
-    process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-    process.env.SUPABASE_PUBLISHABLE_KEY,
+    process.env["VITE_SUPABASE_PUBLISHABLE_KEY"] ||
+    process.env["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"] ||
+    process.env["SUPABASE_PUBLISHABLE_KEY"],
 };
 
 export default defineConfig({

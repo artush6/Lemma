@@ -1,4 +1,4 @@
-// @ts-nocheck -- ProseMirror schema node lookups are dynamic
+import { latexToHTML, looksLikeLatex } from "./latex";
 import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Fragment, Slice, type Node as PMNode, type Schema } from "@tiptap/pm/model";
@@ -27,14 +27,27 @@ function mathFromHTML(html: string) {
 }
 
 /** Light markdown for plain-text pastes (Notion "copy as markdown", Obsidian, ChatGPT). */
-function markdownToHTML(text: string) {
-  const inline = (s: string) =>
-    esc(s)
+export function markdownToHTML(text: string) {
+  const inline = (s: string) => {
+    const tokens: string[] = [];
+    const protectedText = s.replace(
+      /`([^`]+)`|\\\((.+?)\\\)|(?<![\\$])\$([^$\n]+?)\$/g,
+      (match, code, tex, dollar) => {
+        tokens.push(
+          code !== undefined
+            ? `<code>${esc(code)}</code>`
+            : `<span data-type="inline-math" data-latex="${esc(tex || dollar)}"></span>`,
+        );
+        return `\uE000${tokens.length - 1}\uE001`;
+      },
+    );
+    return esc(protectedText)
       .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
       .replace(/(^|[^*])\*(?!\s)(.+?)\*/g, "$1<em>$2</em>")
       .replace(/~~(.+?)~~/g, "<s>$1</s>")
-      .replace(/`([^`]+)`/g, "<code>$1</code>")
-      .replace(/\[(.+?)\]\((https?:[^)]+)\)/g, '<a href="$2">$1</a>');
+      .replace(/\[(.+?)\]\((https?:[^)]+)\)/g, '<a href="$2">$1</a>')
+      .replace(/\uE000(\d+)\uE001/g, (_, index) => tokens[Number(index)] || "");
+  };
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
   const out: string[] = [];
   let list: "ul" | "ol" | null = null;
@@ -45,22 +58,36 @@ function markdownToHTML(text: string) {
     }
   };
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (/^\s*\$\$\s*$/.test(line)) {
+    const line = lines[i]!;
+    const fence = line.match(/^\s*```(\w*)\s*$/);
+    if (fence) {
       close();
       const body: string[] = [];
-      while (++i < lines.length && !/^\s*\$\$\s*$/.test(lines[i])) body.push(lines[i]);
+      while (++i < lines.length && !/^\s*```\s*$/.test(lines[i]!)) body.push(lines[i]!);
+      out.push(`<pre><code>${esc(body.join("\n"))}</code></pre>`);
+      continue;
+    }
+    const display = line.match(/^\s*(?:\$\$|\\\[)([\s\S]*?)(?:\$\$|\\\])\s*$/);
+    if (display) {
+      close();
+      out.push(`<div data-type="math-block" data-latex="${esc(display[1]!)}"></div>`);
+      continue;
+    }
+    if (/^\s*(?:\$\$|\\\[)\s*$/.test(line)) {
+      close();
+      const body: string[] = [];
+      while (++i < lines.length && !/^\s*(?:\$\$|\\\])\s*$/.test(lines[i]!)) body.push(lines[i]!);
       out.push(`<div data-type="math-block" data-latex="${esc(body.join("\n"))}"></div>`);
       continue;
     }
     let m;
     if ((m = line.match(/^(#{1,3})\s+(.*)$/))) {
       close();
-      out.push(`<h${m[1].length}>${inline(m[2])}</h${m[1].length}>`);
+      out.push(`<h${m[1]!.length}>${inline(m[2]!)}</h${m[1]!.length}>`);
     } else if ((m = line.match(/^\s*[-*+]\s+\[( |x)\]\s+(.*)$/i))) {
       close();
       out.push(
-        `<ul data-type="taskList"><li data-type="taskItem" data-checked="${m[1] !== " "}"><p>${inline(m[2])}</p></li></ul>`,
+        `<ul data-type="taskList"><li data-type="taskItem" data-checked="${m[1]! !== " "}"><p>${inline(m[2]!)}</p></li></ul>`,
       );
     } else if ((m = line.match(/^\s*[-*+]\s+(.*)$/))) {
       if (list !== "ul") {
@@ -68,17 +95,17 @@ function markdownToHTML(text: string) {
         out.push("<ul>");
         list = "ul";
       }
-      out.push(`<li><p>${inline(m[1])}</p></li>`);
+      out.push(`<li><p>${inline(m[1]!)}</p></li>`);
     } else if ((m = line.match(/^\s*\d+[.)]\s+(.*)$/))) {
       if (list !== "ol") {
         close();
         out.push("<ol>");
         list = "ol";
       }
-      out.push(`<li><p>${inline(m[1])}</p></li>`);
+      out.push(`<li><p>${inline(m[1]!)}</p></li>`);
     } else if ((m = line.match(/^>\s?(.*)$/))) {
       close();
-      out.push(`<blockquote><p>${inline(m[1])}</p></blockquote>`);
+      out.push(`<blockquote><p>${inline(m[1]!)}</p></blockquote>`);
     } else if (/^\s*(---|\*\*\*)\s*$/.test(line)) {
       close();
       out.push("<hr>");
@@ -97,22 +124,26 @@ function markdownToHTML(text: string) {
 function convertDollars(fragment: Fragment, schema: Schema): Fragment {
   const nodes: PMNode[] = [];
   fragment.forEach((node) => {
+    if (node.type.name === "codeBlock" || node.marks.some((mark) => mark.type.name === "code")) {
+      nodes.push(node);
+      return;
+    }
     if (node.isTextblock && node.type.name === "paragraph") {
       const text = node.textContent.trim();
       const whole = text.match(/^\$\$([\s\S]+)\$\$$/);
-      if (whole && schema.nodes.mathBlock && node.childCount === 1) {
-        nodes.push(schema.nodes.mathBlock.create({ latex: whole[1].trim() }));
+      if (whole && schema.nodes["mathBlock"] && node.childCount === 1) {
+        nodes.push(schema.nodes["mathBlock"].create({ latex: whole[1]!.trim() }));
         return;
       }
     }
-    if (node.isText && node.text && /\$/.test(node.text) && schema.nodes.inlineMath) {
+    if (node.isText && node.text && /\$/.test(node.text) && schema.nodes["inlineMath"]) {
       const re = /\$\$([^$]+?)\$\$|\$([^$\n]+?)\$/g;
       let last = 0;
       let m;
       const t = node.text;
       while ((m = re.exec(t))) {
         if (m.index > last) nodes.push(schema.text(t.slice(last, m.index), node.marks));
-        nodes.push(schema.nodes.inlineMath.create({ latex: (m[1] || m[2]).trim() }));
+        nodes.push(schema.nodes["inlineMath"].create({ latex: (m[1] || m[2] || "").trim() }));
         last = m.index + m[0].length;
       }
       if (last === 0) nodes.push(node);
@@ -136,9 +167,24 @@ export const SmartPaste = Extension.create({
           handlePaste: (_view, event) => {
             const html = event.clipboardData?.getData("text/html");
             const text = event.clipboardData?.getData("text/plain");
-            if (html || !text) return false;
+            if (!text || editor.isActive("codeBlock")) return false;
             const looksMarkdown =
-              /(^|\n)(#{1,3}\s|[-*+]\s|\d+[.)]\s|>\s|\$\$)|\*\*.+\*\*|\$[^$\n]+\$/.test(text);
+              /(^|\n)(#{1,3}\s|[-*+]\s|\d+[.)]\s|>\s|\$\$|```|\\\[)|\*\*.+\*\*|\$[^$\n]+\$|\\\(/.test(
+                text,
+              );
+            const latexStructure =
+              /\\(?:documentclass|begin\{|(?:section|subsection|chapter|textbf|textit|emph)\*?\s*\{)/.test(
+                text,
+              );
+            if (
+              looksLikeLatex(text) &&
+              (!looksMarkdown || latexStructure || /^\s*```(?:latex|tex)\b/i.test(text)) &&
+              !/^\s*```(?!latex\b|tex\b)/i.test(text)
+            ) {
+              editor.commands.insertContent(latexToHTML(text));
+              return true;
+            }
+            if (html) return false;
             if (!looksMarkdown) return false;
             editor.commands.insertContent(markdownToHTML(text));
             return true;

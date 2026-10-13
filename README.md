@@ -21,6 +21,22 @@ npm i
 npm run dev
 ```
 
+## Smart paste
+
+Paste LaTeX documents or TeX fragments directly into the editor to import headings,
+paragraphs, emphasis, lists, quotes, citations, references, and rendered equations.
+Math supports `$…$`, `$$…$$`, `\(…\)`, `\[…\]`, and common equation environments
+such as `equation`, `align`, and `gather`. Local math commands declared with
+`\newcommand`, `\renewcommand`, or `\DeclareMathOperator` are kept with equations.
+
+Markdown headings, lists, tasks, links, emphasis, code blocks, and math are also
+recognized, along with equations copied from KaTeX/MathML pages. Pasting into a
+code block preserves source text. TeX verbatim environments stay literal.
+
+Imports use Lemma's editable document layout rather than compiling a PDF: TeX
+packages, custom fonts, headers, and page geometry are not reproduced. Unsupported
+body commands remain visible as text so their content is not silently discarded.
+
 ## Formatting
 
 Run `npm run format` to format the source and configuration files, and
