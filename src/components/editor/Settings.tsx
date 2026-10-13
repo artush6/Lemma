@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 
 export type Preferences = {
+  version: 1;
+  pageDirection: "vertical" | "horizontal";
   startup: string;
   density: string;
   sidebarWidth: number;
@@ -33,6 +35,8 @@ export type Preferences = {
   printNumbers: boolean;
 };
 export const defaultPreferences: Preferences = {
+  version: 1,
+  pageDirection: "vertical",
   startup: "workspace",
   density: "comfortable",
   sidebarWidth: 244,
@@ -319,6 +323,18 @@ export function Settings({
                   <h3>Page layout</h3>
                   <Row title="Paper size">
                     <span>A4 · 210 × 297 mm</span>
+                  </Row>
+                  <Row title="Page direction">
+                    <select
+                      aria-label="Page direction"
+                      value={p.pageDirection}
+                      onChange={(e) =>
+                        set("pageDirection", e.target.value as Preferences["pageDirection"])
+                      }
+                    >
+                      <option value="vertical">Vertical · scroll down</option>
+                      <option value="horizontal">Horizontal · scroll across</option>
+                    </select>
                   </Row>
                   <Row title="Orientation">
                     <span>Portrait</span>

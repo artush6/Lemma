@@ -560,12 +560,23 @@ export const Graph = Node.create({
   },
 });
 export const Callout = Node.create({
+  addAttributes: () => ({
+    icon: {
+      default: "",
+      parseHTML: (el) => el.getAttribute("data-icon") || "",
+      renderHTML: (attrs) => ({ "data-icon": attrs.icon }),
+    },
+  }),
   name: "callout",
   group: "block",
   content: "block+",
   defining: true,
   parseHTML() {
-    return [{ tag: 'aside[data-type="callout"]' }];
+    return [
+      { tag: "aside" },
+      { tag: 'div[data-type="callout"]' },
+      { tag: ".notion-callout-block" },
+    ];
   },
   renderHTML({ HTMLAttributes }) {
     return ["aside", mergeAttributes(HTMLAttributes, { "data-type": "callout" }), 0];

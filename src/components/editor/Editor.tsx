@@ -75,7 +75,14 @@ import { Button } from "@/components/ui/button";
 import { NoteIcon } from "./NoteIcon";
 import { Outline } from "./Outline";
 import { IconPicker, TagRow } from "./DocHeader";
-import { SmartPaste } from "./paste";
+import { SmartPaste, mathFromHTML } from "./paste";
+import {
+  ImageBlock,
+  ImagePlaceholder,
+  ToggleHeading,
+  ToggleBody,
+  imageFileContent,
+} from "./blocks";
 import { A4Pagination } from "./pagination";
 import { Focus as FocusExtension } from "@tiptap/extensions";
 
@@ -84,6 +91,9 @@ const commands = [
   "Heading 1",
   "Heading 2",
   "Heading 3",
+  "Heading 4",
+  "Toggle heading",
+  "Image",
   "Bullet list",
   "Numbered list",
   "Task list",
@@ -99,6 +109,9 @@ const commandShortcuts: Record<string, string> = {
   "Heading 1": "⌘⌥1",
   "Heading 2": "⌘⌥2",
   "Heading 3": "⌘⌥3",
+  "Heading 4": "⌘⌥4",
+  "Toggle heading": "## >",
+  Image: "/image",
   "Bullet list": "⌘⇧8",
   "Numbered list": "⌘⇧7",
   "Task list": "⌘⇧9",
@@ -109,7 +122,24 @@ const commandShortcuts: Record<string, string> = {
   Graph: "/graph",
   "Code block": "⌘⌥C",
 };
-const commandIcon = ["T", "H1", "H2", "H3", "•", "1.", "☑", "❝", "▧", "—", "∑", "⌁", "</>"];
+const commandIcon = [
+  "T",
+  "H1",
+  "H2",
+  "H3",
+  "H4",
+  "▸",
+  "▧",
+  "•",
+  "1.",
+  "☑",
+  "❝",
+  "▧",
+  "—",
+  "∑",
+  "⌁",
+  "</>",
+];
 const ownerStoragePrefix = (ownerId: string | undefined | null) => `lemma:${ownerId || "local"}:`;
 const draftStorageKey = (ownerId: string | undefined | null, id: string) =>
   `${ownerStoragePrefix(ownerId)}note:${id}`;
@@ -282,7 +312,7 @@ export default function Editor() {
       SmartPaste,
       A4Pagination,
       FocusExtension.configure({ className: "has-focus", mode: "shallowest" }),
-      StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
+      StarterKit.configure({ heading: { levels: [1, 2, 3, 4, 5, 6] } }),
       Placeholder.configure({ placeholder: "Start writing, or type “/” for commands…" }),
       TextStyle,
       Color,
@@ -347,6 +377,10 @@ export default function Editor() {
       MathBlock,
       InlineMath,
       Graph,
+      ImageBlock,
+      ImagePlaceholder,
+      ToggleHeading,
+      ToggleBody,
       Callout,
       PageBreak,
     ],
@@ -379,7 +413,7 @@ export default function Editor() {
     editorProps: {
       attributes: { class: "lemma-prose" },
       transformPastedHTML: (html) => {
-        const doc = new DOMParser().parseFromString(html, "text/html");
+        const doc = new DOMParser().parseFromString(mathFromHTML(html), "text/html");
         doc.querySelectorAll("script,style,meta,link").forEach((node) => node.remove());
         doc.querySelectorAll("table").forEach((table) => {
           const rows = [...table.querySelectorAll("tr")].map((row) =>
@@ -400,7 +434,16 @@ export default function Editor() {
           for (const attr of [...node.attributes])
             if (
               ["style", "class", "id", "data-*"].includes(attr.name) ||
-              attr.name.startsWith("data-")
+              (attr.name.startsWith("data-") &&
+                ![
+                  "data-type",
+                  "data-latex",
+                  "data-icon",
+                  "data-level",
+                  "data-collapsed",
+                  "data-name",
+                  "data-checked",
+                ].includes(attr.name))
             )
               node.removeAttribute(attr.name);
         });
@@ -889,6 +932,47 @@ export default function Editor() {
         case "Heading 3":
           editor.chain().focus().toggleHeading({ level: 3 }).run();
           break;
+        case "Heading 4":
+          editor.chain().focus().toggleHeading({ level: 4 }).run();
+          break;
+        case "Toggle heading":
+          editor
+            .chain()
+            .focus()
+            .insertContent({
+              type: "toggleHeading",
+              attrs: { level: 2 },
+              content: [
+                {
+                  type: "heading",
+                  attrs: { level: 2 },
+                  content: [{ type: "text", text: "Toggle heading" }],
+                },
+                { type: "toggleBody", content: [{ type: "paragraph" }] },
+              ],
+            })
+            .run();
+          break;
+        case "Image": {
+          const input = document.createElement("input");
+          input.type = "file";
+          input.accept = "image/png,image/jpeg,image/gif,image/webp";
+          input.onchange = async () => {
+            const file = input.files?.[0];
+            if (!file) return;
+            try {
+              const content = await imageFileContent(file);
+              if (content && !editor.isDestroyed)
+                editor.chain().focus().insertContent(content).run();
+            } catch (error) {
+              window.alert(
+                error instanceof Error ? error.message : "This image could not be opened.",
+              );
+            }
+          };
+          input.click();
+          break;
+        }
         case "Bullet list":
           editor.chain().focus().toggleBulletList().run();
           break;
@@ -1429,19 +1513,15 @@ export default function Editor() {
   );
   const outlineItems = (() => {
     const items: { title: string; level: number; position: number }[] = [];
-    const walk = (node: Note["content"]) => {
-      for (const child of node.content || []) {
-        if (child.type === "heading") {
-          items.push({
-            title: (child.content || []).map((part) => part.text || "").join(""),
-            level: Number(child.attrs?.level) || 1,
-            position: items.length,
-          });
-        }
-        if (child.content) walk(child as Note["content"]);
+    editor?.state.doc.descendants((node, position) => {
+      if (node.type.name === "heading") {
+        let title = "";
+        node.forEach((part) => {
+          title += part.text || part.attrs?.latex || "";
+        });
+        items.push({ title, level: Number(node.attrs?.level) || 1, position });
       }
-    };
-    if (active) walk(documentContent(active));
+    });
     return items;
   })();
   const renderLibraryNote = (note: Note) =>
@@ -1495,7 +1575,7 @@ export default function Editor() {
   if (library)
     return (
       <main
-        className={`lemma-app library-app ${dark ? "dark" : ""} density-${preferences.density} ${preferences.showIcons ? "" : "hide-note-icons"}`}
+        className={`lemma-app library-app ${dark ? "dark" : ""} page-direction-${preferences.pageDirection} density-${preferences.density} ${preferences.showIcons ? "" : "hide-note-icons"}`}
         style={{ "--sidebar-width": `${preferences.sidebarWidth}px` } as React.CSSProperties}
       >
         <aside className="sidebar">
@@ -1530,6 +1610,7 @@ export default function Editor() {
           <label className="search-field">
             <Search size={14} />
             <input
+              aria-label="Search notes"
               placeholder="Search notes"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -1745,7 +1826,7 @@ export default function Editor() {
   if (!darkinit) return null;
   return (
     <main
-      className={`lemma-app ${dark ? "dark" : ""} ${preview ? "is-preview" : ""} ${focus ? "is-focus" : ""} ${demoMode ? "demo-mode" : ""} ${outline && outlineItems.length ? "has-outline" : ""} ${preferences.boundaries ? "" : "hide-boundaries"} ${preferences.pageNumbers ? "" : "hide-page-numbers"} ${preferences.printNumbers ? "print-page-numbers" : ""} density-${preferences.density} ${preferences.showIcons ? "" : "hide-note-icons"} page-layout-${active?.page_layout === "infinite" ? "infinite" : "a4"}`}
+      className={`lemma-app ${dark ? "dark" : ""} ${preview ? "is-preview" : ""} ${focus ? "is-focus" : ""} ${demoMode ? "demo-mode" : ""} ${outline && outlineItems.length ? "has-outline" : ""} ${preferences.boundaries ? "" : "hide-boundaries"} ${preferences.pageNumbers ? "" : "hide-page-numbers"} ${preferences.printNumbers ? "print-page-numbers" : ""} page-direction-${preferences.pageDirection} density-${preferences.density} ${preferences.showIcons ? "" : "hide-note-icons"} page-layout-${active?.page_layout === "infinite" ? "infinite" : "a4"}`}
       style={
         {
           "--sidebar-width": `${preferences.sidebarWidth}px`,
@@ -1771,6 +1852,7 @@ export default function Editor() {
             </Button>
             <Button
               variant="ghost"
+              aria-label="Collapse sidebar"
               title="Collapse sidebar"
               className="icon-button sidebar-collapse"
               onClick={() => setSidebar(false)}
@@ -1791,6 +1873,7 @@ export default function Editor() {
           <label className="search-field">
             <Search size={14} />
             <input
+              aria-label="Search notes"
               placeholder="Search notes"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -1860,7 +1943,9 @@ export default function Editor() {
                 <Home size={14} />
                 {folderName(active?.folder_id || null)}
               </Button>
-              <span className="crumb-sep">/</span>
+              <span className="crumb-sep" aria-hidden="true">
+                /
+              </span>
               <Button
                 variant="ghost"
                 onClick={rename}
@@ -2314,24 +2399,24 @@ export default function Editor() {
             key={active?.id}
             items={outlineItems}
             onSelect={(target) => {
-              let count = 0;
-              let position = -1;
-              editor?.state.doc.descendants((node, pos) => {
-                if (node.type.name === "heading") {
-                  if (count === target) {
-                    position = pos;
-                    return false;
-                  }
-                  count++;
-                }
-              });
-              if (position >= 0)
-                editor
-                  ?.chain()
-                  .setTextSelection(position + 1)
-                  .scrollIntoView()
-                  .focus()
-                  .run();
+              if (!editor) return;
+              const resolved = editor.state.doc.resolve(target);
+              const transaction = editor.state.tr;
+              for (let depth = 1; depth <= resolved.depth; depth++) {
+                const node = resolved.node(depth);
+                if (node.type.name === "toggleHeading" && node.attrs.collapsed)
+                  transaction.setNodeMarkup(resolved.before(depth), undefined, {
+                    ...node.attrs,
+                    collapsed: false,
+                  });
+              }
+              if (transaction.docChanged) editor.view.dispatch(transaction);
+              editor
+                .chain()
+                .setTextSelection(target + 1)
+                .scrollIntoView()
+                .focus()
+                .run();
             }}
           />
         )}

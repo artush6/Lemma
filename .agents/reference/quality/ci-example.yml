@@ -1,0 +1,30 @@
+# Inert Lemma proposal: this file is outside .github/workflows.
+# Review baseline lint/format failures and configure public build variables
+# before activating. Production branch and deployment policy are unverified.
+name: Lemma Quality Gates
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    env:
+      VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+      - run: bun install --frozen-lockfile
+      - run: bun run format:check
+      - run: bun run lint
+      # package.json has no typecheck script; invoke the installed compiler.
+      - run: ./node_modules/.bin/tsc --noEmit
+      - run: bun run test
+      - run: bun run build
+# Pin actions to reviewed SHAs before activating if required by release policy.
+# Add isolated browser/RLS tests only after fixtures and identities are designed.
+# Never put service-role or migration credentials in public VITE_* variables.

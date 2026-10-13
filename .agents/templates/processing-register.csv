@@ -1,0 +1,3 @@
+Data category,Source,Purpose,Lawful basis to verify,Recipients/processors,Storage location,Retention period to verify,User right/control,Security control,Owner,status
+Email,Sign-up,Authentication,REVIEW,Supabase Auth,REVIEW,REVIEW,Export/delete,Authentication + RLS,REVIEW,UNVERIFIED
+Analytics events,App usage,Measurement,REVIEW,REVIEW,REVIEW,REVIEW,Consent/objection as applicable,Consent gate,REVIEW,UNVERIFIED

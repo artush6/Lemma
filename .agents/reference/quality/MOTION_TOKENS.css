@@ -1,0 +1,29 @@
+/* Reference only. Integrate into your design system and test in browser. */
+:root {
+  --motion-fast: 150ms;
+  --motion-medium: 240ms;
+  --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --motion-springish: cubic-bezier(0.2, 1.25, 0.35, 1);
+}
+.ui-interactive {
+  transition:
+    transform var(--motion-fast) var(--motion-ease),
+    opacity var(--motion-fast) var(--motion-ease);
+}
+@media (hover: hover) {
+  .ui-interactive:hover {
+    transform: translateY(-2px);
+  }
+}
+.ui-interactive:active {
+  transform: scale(0.985);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-interactive {
+    transition: none;
+  }
+  .ui-interactive:hover,
+  .ui-interactive:active {
+    transform: none;
+  }
+}

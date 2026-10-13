@@ -3,6 +3,17 @@ import { Editor, Node } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import katex from "katex";
 import { latexToHTML, looksLikeLatex } from "@/components/editor/latex";
+import TaskList from "@tiptap/extension-task-list";
+import TaskItem from "@tiptap/extension-task-item";
+import { Callout } from "@/components/editor/nodes";
+import {
+  safeImageSource,
+  imageFileContent,
+  ImageBlock,
+  ImagePlaceholder,
+  ToggleHeading,
+  ToggleBody,
+} from "@/components/editor/blocks";
 import { SmartPaste, markdownToHTML } from "@/components/editor/paste";
 
 const parse = (html: string) => new DOMParser().parseFromString(html, "text/html");
@@ -23,7 +34,9 @@ const mathNodes = [false, true].map((inline) =>
 );
 const paste = (editor: Editor, text: string, html = "") => {
   const event = {
-    clipboardData: { getData: (type: string) => (type === "text/plain" ? text : html) },
+    clipboardData: {
+      getData: (type: string) => (type === "text/plain" ? text : type === "text/html" ? html : ""),
+    },
   } as ClipboardEvent;
   let handled = false;
   editor.view.someProp("handlePaste", (handler) => {
@@ -142,5 +155,114 @@ Literal $math$ and <script> tags
     );
     expect(doc.body.textContent).toContain("\\unknownimportant text");
     expect(doc.querySelector("a, img")).toBeNull();
+  });
+});
+
+describe("Markdown and Notion documents", () => {
+  const create = () =>
+    new Editor({
+      extensions: [
+        StarterKit.configure({ heading: { levels: [1, 2, 3, 4, 5, 6] } }),
+        TaskList,
+        TaskItem.configure({ nested: true }),
+        ...mathNodes,
+        Callout,
+        ImageBlock,
+        ImagePlaceholder,
+        ToggleHeading,
+        ToggleBody,
+        SmartPaste,
+      ],
+    });
+  it("prioritizes Markdown structure over LaTeX inside equations, even with HTML on the clipboard", () => {
+    const editor = create();
+    const source = String.raw`# Functions
+<aside>
+📖
+## Definition
+A **bold** value $f(x)$.
+$$
+\begin{aligned}
+f &: E \to F \\
+x &\to f(x)
+\end{aligned}
+$$
+<aside>
+❗
+#### Remark
+Nested content.
+</aside>
+</aside>
+!Missing screenshot.png`;
+    expect(paste(editor, source, "<pre>Markdown source</pre>")).toBe(true);
+    const doc = parse(editor.getHTML());
+    expect(doc.querySelectorAll("aside")).toHaveLength(2);
+    expect(doc.querySelector('aside[data-icon="📖"] h2')?.textContent).toBe("Definition");
+    expect(doc.querySelector("h4")?.textContent).toBe("Remark");
+    expect(doc.querySelector("strong")?.textContent).toBe("bold");
+    expect(JSON.stringify(editor.getJSON())).toContain('"type":"mathBlock"');
+    expect(JSON.stringify(editor.getJSON())).toContain('"type":"imagePlaceholder"');
+    expect(editor.getText()).not.toContain("<aside>");
+    editor.commands.undo();
+    expect(editor.getText()).toBe("");
+    editor.destroy();
+  });
+  it("imports nested lists, grouped tasks, H6, toggle headings and real image URLs", () => {
+    const editor = create();
+    paste(
+      editor,
+      `###### Small heading
+## > Expand me
+  Body **text**
+  - First
+    - Nested
+- [x] Complete
+- [ ] Next
+![Diagram](https://example.com/diagram.png)`,
+    );
+    const doc = parse(editor.getHTML());
+    expect(doc.querySelector("h6")?.textContent).toBe("Small heading");
+    expect(doc.querySelector('section[data-type="toggle-heading"] h2')?.textContent).toBe(
+      "Expand me",
+    );
+    expect(doc.querySelector("ul ul li")?.textContent).toBe("Nested");
+    expect(doc.querySelectorAll('ul[data-type="taskList"] > li')).toHaveLength(2);
+    expect(doc.querySelector("img")?.getAttribute("src")).toBe("https://example.com/diagram.png");
+    editor.destroy();
+  });
+  it("preserves rich HTML headings and imports native HTML callouts and images", () => {
+    const editor = create();
+    expect(
+      paste(
+        editor,
+        "Rendered heading",
+        '<aside><h4>Rendered heading</h4><img src="https://example.com/image.png"></aside>',
+      ),
+    ).toBe(false);
+    editor.commands.insertContent(
+      '<aside><h4>Rendered heading</h4><img src="https://example.com/image.png"></aside>',
+    );
+    expect(editor.getJSON().content?.[0]?.type).toBe("callout");
+    expect(parse(editor.getHTML()).querySelector("h4")).not.toBeNull();
+    editor.destroy();
+  });
+});
+
+describe("image attachment input", () => {
+  it("accepts standard image URLs and relative exports while rejecting script URLs", async () => {
+    expect(safeImageSource("diagrams/curve.png")).toBe(true);
+    expect(safeImageSource("https://example.com/image.png")).toBe(true);
+    expect(safeImageSource(" javascript:alert(1)")).toBe(false);
+    expect(safeImageSource("data:text/html,document")).toBe(false);
+    const image = new File(["image contents"], "diagram.png", { type: "image/png" });
+    expect((await imageFileContent(image))?.attrs.src).toMatch(/^data:image\/png;base64,/);
+    expect(
+      await imageFileContent(new File(["text"], "note.txt", { type: "text/plain" })),
+    ).toBeNull();
+    await expect(
+      imageFileContent(
+        new File([new Uint8Array(2 * 1024 * 1024 + 1)], "large.png", { type: "image/png" }),
+      ),
+    ).rejects.toThrow("2 MB");
   });
 });
