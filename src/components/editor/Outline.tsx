@@ -1,3 +1,4 @@
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 
@@ -8,8 +9,10 @@ export function Outline({
   items: { title: string; level: number; position: number }[];
   onSelect: (position: number) => void;
 }) {
+  const reducedMotion = useReducedMotion();
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
+  const rail = useRef<HTMLButtonElement>(null);
   const root = useRef<HTMLElement>(null);
   useEffect(() => {
     const workspace = root.current?.closest(".workspace");
@@ -49,16 +52,23 @@ export function Outline({
       ref={root}
       className="compact-outline"
       onKeyDown={(event) => {
-        if (event.key === "Escape") setOpen(false);
+        if (event.key === "Escape") {
+          event.preventDefault();
+          rail.current?.focus();
+          setOpen(false);
+        }
       }}
       onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
+      onMouseLeave={() => {
+        if (!root.current?.contains(document.activeElement)) setOpen(false);
+      }}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false);
       }}
     >
       <Button
         variant="ghost"
+        ref={rail}
         className="outline-rail"
         style={{ height: `min(65vh, ${items.length * 9 + 20}px)` }}
         aria-label="Document outline"
@@ -73,23 +83,35 @@ export function Outline({
           />
         ))}
       </Button>
-      {open && (
-        <nav className="outline-popover" aria-label="Document contents">
-          {items.map((item) => (
-            <Button
-              variant="ghost"
-              key={item.position}
-              className={`outline-entry level-${item.level} ${selected === item.position ? "active" : ""}`}
-              onClick={() => {
-                setSelected(item.position);
-                onSelect(item.position);
-              }}
-            >
-              {item.title || "Untitled section"}
-            </Button>
-          ))}
-        </nav>
-      )}
+      <AnimatePresence>
+        {open && (
+          <motion.nav
+            className="outline-popover"
+            aria-label="Document contents"
+            initial={{ opacity: 0, y: "-50%", x: reducedMotion ? 0 : 6 }}
+            animate={{ opacity: 1, y: "-50%", x: 0 }}
+            exit={{ opacity: 0, y: "-50%", x: reducedMotion ? 0 : 4 }}
+            whileHover={reducedMotion ? {} : { x: -2 }}
+            transition={{ duration: reducedMotion ? 0 : 0.16 }}
+          >
+            <div className="outline-caption">On this page</div>
+            {items.map((item) => (
+              <Button
+                variant="ghost"
+                key={item.position}
+                className={`outline-entry level-${item.level} ${selected === item.position ? "active" : ""}`}
+                aria-current={selected === item.position ? "location" : undefined}
+                onClick={() => {
+                  setSelected(item.position);
+                  onSelect(item.position);
+                }}
+              >
+                {item.title || "Untitled section"}
+              </Button>
+            ))}
+          </motion.nav>
+        )}
+      </AnimatePresence>
     </aside>
   );
 }

@@ -6,6 +6,8 @@ import { createPortal } from "react-dom";
 import { create, all } from "mathjs";
 import * as functionPlotModule from "function-plot";
 import { Eye, EyeOff, Plus, RotateCcw, Spline, X } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 
 const functionPlot =
@@ -428,10 +430,11 @@ export function GraphView({ node, updateAttributes, selected, editor }: NodeView
                 ] as const
               ).map(([k, l]) => (
                 <label key={k}>
-                  <input
-                    type="checkbox"
+                  <Checkbox
+                    className="lemma-checkbox"
+                    aria-label={l}
                     checked={opts[k]}
-                    onChange={(e) => updateAttributes({ [k]: e.target.checked })}
+                    onCheckedChange={(checked) => updateAttributes({ [k]: checked === true })}
                   />
                   {l}
                 </label>
@@ -439,13 +442,14 @@ export function GraphView({ node, updateAttributes, selected, editor }: NodeView
             </div>
             <label className="gc-height">
               <span>Height</span>
-              <input
-                type="range"
-                min="240"
-                max="600"
-                step="20"
-                value={a.height || 340}
-                onChange={(e) => updateAttributes({ height: +e.target.value })}
+              <Slider
+                className="lemma-slider"
+                aria-label="Graph height"
+                min={240}
+                max={600}
+                step={20}
+                value={[a.height || 340]}
+                onValueChange={([height]) => updateAttributes({ height })}
               />
             </label>
           </aside>,

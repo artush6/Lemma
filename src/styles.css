@@ -1782,7 +1782,7 @@ kbd {
   line-height: 1;
   text-align: center;
 }
-.note-item > span:not(.note-icon) {
+.note-item > span:not(.note-icon, .note-symbol) {
   min-width: 0;
   flex: 1;
 }
@@ -2029,7 +2029,7 @@ kbd {
   padding-left: 8px;
   font-size: 11px;
 }
-.tree-note > span:first-child {
+.tree-note > .tree-note-title {
   min-width: 0;
   flex: 1;
   overflow: hidden;
@@ -4610,7 +4610,8 @@ body {
   display: none;
 }
 .lemma-app .topbar {
-  height: 48px;
+  height: 68px;
+  min-height: 68px;
   padding: 0 18px;
   border-bottom: 1px solid var(--line) !important;
   flex-wrap: nowrap;
@@ -4833,7 +4834,9 @@ body {
   padding: 8px;
 }
 .lemma-app .library-header {
-  padding: 32px 40px 24px;
+  padding: 28px 40px 24px;
+  gap: 20px;
+  flex-wrap: wrap;
   border-bottom: 1px solid var(--line) !important;
 }
 .lemma-app .library-header .panel-eyebrow {
@@ -4846,7 +4849,7 @@ body {
 }
 .lemma-app .library-content {
   max-width: 1100px;
-  padding: 24px 40px 60px;
+  padding: 8px 40px 60px;
   margin: 0;
 }
 .lemma-app .library-content h2 {
@@ -4927,6 +4930,40 @@ body {
 }
 .lemma-app .library-note small {
   font-size: 11px;
+}
+.lemma-app .library-heading {
+  min-width: 0;
+}
+.lemma-app .library-sidebar-open {
+  margin: 0 8px 8px -4px;
+}
+.lemma-app .library-heading h1 {
+  overflow-wrap: anywhere;
+}
+.lemma-app .library-heading p {
+  margin: 6px 0 0;
+}
+.lemma-app .library-back {
+  justify-content: flex-start;
+  height: 28px;
+  padding: 0 4px;
+  margin: 0 0 10px -4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.lemma-app .library-actions {
+  flex-wrap: wrap;
+}
+.lemma-app .library-actions .library-delete {
+  color: var(--muted);
+  border-left: 1px solid var(--line);
+  margin-left: 4px;
+}
+.lemma-app .library-note-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .graph-legend {
   font: 13px var(--font-ui);
@@ -5738,12 +5775,16 @@ body,
 }
 .lemma-app.page-layout-a4.page-direction-horizontal .doc-scroll {
   overflow: auto;
+  display: flex;
+  padding: 24px !important;
 }
 .lemma-app.page-layout-a4.page-direction-horizontal .document {
   width: var(--horizontal-width, 210mm) !important;
   max-width: none;
   height: 297mm;
   min-height: 297mm;
+  flex: none;
+  margin: auto !important;
   background: repeating-linear-gradient(
     to right,
     var(--paper) 0,
@@ -5878,6 +5919,20 @@ body,
 .lemma-app .sidebar > .brand-button {
   padding: 0 10px;
 }
+.lemma-app .sidebar .tree-note {
+  justify-content: flex-start;
+  gap: 8px !important;
+  padding: 0 10px;
+}
+.lemma-app .sidebar .tree-note > .note-symbol {
+  flex: 0 0 16px;
+  overflow: visible;
+}
+.lemma-app .sidebar .tree-note > .tree-note-title {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
 .lemma-app .sidebar :is(.new-note, .side-link, .search-field) {
   flex-shrink: 0;
   gap: 10px;
@@ -6010,5 +6065,373 @@ body,
   }
   .lemma-app :is(.icon-button, .new-note, .editor-toolbar button):is(:hover, :active) svg {
     transform: none;
+  }
+}
+
+/* Editor control polish: shared shadcn primitives in the Lemma theme. */
+.lemma-app :is(.search-field, .slash-search) {
+  transition:
+    border-color var(--motion-fast),
+    box-shadow var(--motion-fast),
+    background var(--motion-fast);
+}
+.lemma-app :is(.search-field, .slash-search):focus-within {
+  background: var(--surface);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+  border-color: var(--accent);
+}
+.lemma-app :is(.search-field, .slash-search) input {
+  caret-color: var(--accent);
+}
+.lemma-app kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 2px 6px;
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--muted);
+  font: 11px/1.4 var(--font-ui);
+  white-space: nowrap;
+}
+.lemma-app .command-search {
+  border-radius: 14px;
+  overflow: hidden;
+}
+.lemma-app .command-search .search-field {
+  margin: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.lemma-app .command-search .search-field input {
+  min-height: 28px;
+}
+.lemma-app .command-results {
+  padding: 4px 10px 12px;
+}
+.lemma-app .command-results button {
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 7px;
+}
+.lemma-app .command-results button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: var(--accent-soft);
+}
+.lemma-app .command-search footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  font-size: 12px;
+}
+.lemma-app .slash-search {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.lemma-app .equation-popup {
+  width: 460px;
+  border-radius: 12px;
+}
+.lemma-app .equation-popup-editor {
+  padding: 12px;
+  gap: 12px;
+}
+.lemma-app .equation-popup-label {
+  height: 28px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.lemma-app .latex-source {
+  position: relative;
+  min-width: 0;
+  border-radius: 8px;
+  background: var(--soft);
+}
+.lemma-app .latex-source:focus-within {
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.lemma-app .latex-source .latex-highlight,
+.lemma-app .latex-source textarea {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font: 13px/22px var(--font-mono);
+  letter-spacing: normal;
+  tab-size: 2;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+.lemma-app .latex-source .latex-highlight {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--ink);
+  background: transparent;
+}
+.lemma-app .latex-source textarea {
+  position: relative;
+  display: block;
+  height: 70px;
+  min-height: 70px;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--accent);
+  border-color: var(--line-strong);
+}
+.lemma-app .latex-source textarea::selection {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.lemma-app .latex-source textarea::placeholder {
+  color: var(--muted);
+}
+.lemma-app .latex-command {
+  color: var(--accent);
+}
+.lemma-app .latex-operator {
+  color: var(--muted);
+}
+.lemma-app .latex-number {
+  color: #9463bb;
+}
+.lemma-app.dark .latex-number {
+  color: #c69be8;
+}
+.lemma-app .equation-popup-done {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 7px;
+  min-height: 40px;
+}
+.lemma-app .gc-options {
+  display: grid;
+  gap: 4px;
+}
+.lemma-app .gc-options label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  cursor: pointer;
+}
+.lemma-app .lemma-checkbox {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: var(--surface);
+  box-shadow: none;
+}
+.lemma-app .lemma-checkbox[data-state="checked"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+.lemma-app .lemma-switch {
+  width: 38px;
+  height: 24px;
+  padding: 2px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--line-strong);
+}
+.lemma-app .lemma-switch[data-state="checked"] {
+  background: var(--accent);
+}
+.lemma-app .lemma-switch > span {
+  width: 20px;
+  height: 20px;
+  background: white;
+  transform: translateX(0);
+}
+.lemma-app .lemma-switch[data-state="checked"] > span {
+  transform: translateX(14px);
+}
+.lemma-app .lemma-slider {
+  min-height: 32px;
+  flex: 1;
+}
+.lemma-app .lemma-slider > [data-orientation] {
+  height: 5px;
+  background: var(--line-strong);
+}
+.lemma-app .lemma-slider > [data-orientation] > span {
+  background: var(--accent);
+}
+.lemma-app .lemma-slider [role="slider"] {
+  width: 18px;
+  height: 18px;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  box-shadow: 0 1px 4px #0002;
+}
+.lemma-app :is(.lemma-switch, .lemma-checkbox):focus-visible,
+.lemma-app .lemma-slider [role="slider"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.lemma-app .gc-viewport input {
+  min-height: 36px;
+  border-radius: 7px;
+  padding: 8px 10px;
+}
+.lemma-app .outline-popover {
+  padding: 8px;
+  border-radius: 12px;
+  animation: none;
+  translate: none;
+  transform: none;
+}
+.lemma-app .outline-caption {
+  padding: 8px 10px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.lemma-app .outline-entry {
+  min-height: 36px;
+  border-radius: 6px;
+  transition:
+    background var(--motion-fast),
+    color var(--motion-fast);
+}
+.lemma-app .outline-entry.active {
+  background: var(--accent-soft);
+}
+.lemma-app .outline-entry:hover {
+  background: var(--hover);
+  color: var(--ink-strong);
+}
+@media (prefers-reduced-motion: reduce) {
+  .lemma-app
+    :is(.search-field, .slash-search, .outline-entry, .lemma-switch, .lemma-switch > span) {
+    transition: none;
+  }
+}
+@media (forced-colors: active) {
+  .lemma-app .latex-source textarea {
+    color: CanvasText;
+  }
+  .lemma-app .latex-highlight {
+    visibility: hidden;
+  }
+}
+.lemma-app .search-scrim {
+  z-index: 80;
+}
+
+/* Finish the comfortable control scale across navigation and editing. */
+.lemma-app .sidebar :is(.side-link, .search-field, .new-note) {
+  min-height: 40px;
+}
+.lemma-app .workspace > .editor-toolbar {
+  gap: 5px;
+  padding: 10px 16px;
+}
+.lemma-app .workspace > .editor-toolbar button {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  border-radius: 7px;
+}
+.lemma-app .slash-menu {
+  padding: 8px;
+  border-radius: 12px;
+}
+.lemma-app .slash-menu button {
+  min-height: 40px;
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+.lemma-app .slash-menu button.focused {
+  background: var(--accent-soft) !important;
+  color: var(--accent) !important;
+}
+.lemma-app .search-shortcut {
+  padding: 0;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 6px;
+}
+.lemma-app .search-shortcut kbd {
+  min-height: 28px;
+  padding: 3px 7px;
+}
+.lemma-app .search-shortcut:hover kbd {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.lemma-app .search-dismiss {
+  min-width: 40px;
+  height: 30px;
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.lemma-app .search-help {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+}
+.lemma-app .search-open-action {
+  margin-left: auto;
+  min-height: 36px;
+  padding: 6px 10px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 7px;
+  font-size: 12px;
+}
+.lemma-app .search-empty {
+  padding: 24px 12px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+.lemma-app .command-search .search-field {
+  height: auto;
+  min-height: 52px;
+}
+.lemma-app .command-search footer {
+  flex-wrap: wrap;
+}
+.lemma-app .compact-outline::before {
+  content: "";
+  position: absolute;
+  inset: -12px 0 -12px -12px;
+  z-index: -1;
+}
+.lemma-app .outline-rail {
+  transition: background var(--motion-fast);
+}
+.lemma-app .outline-rail:hover {
+  background: var(--accent-soft);
+}
+.lemma-app .outline-entry:focus-visible,
+.lemma-app :is(.search-dismiss, .search-shortcut, .search-open-action):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (pointer: coarse) {
+  .lemma-app .workspace > .editor-toolbar button {
+    min-width: 40px;
+    height: 40px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lemma-app .outline-rail {
+    transition: none;
   }
 }

@@ -1,3 +1,4 @@
+import { Switch } from "@/components/ui/switch";
 import { useState, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Button } from "@/components/ui/button";
@@ -113,16 +114,12 @@ function Toggle({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <Button
-      variant="ghost"
-      className="preference-switch"
-      role="switch"
+    <Switch
+      className="lemma-switch"
       aria-label={label}
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-    >
-      <span />
-    </Button>
+      checked={checked}
+      onCheckedChange={onChange}
+    />
   );
 }
 export function Settings({

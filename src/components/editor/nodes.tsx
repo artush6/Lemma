@@ -273,90 +273,119 @@ function EquationView({ node, updateAttributes, editor }: NodeViewProps) {
                     <X size={14} />
                   </Button>
                 </LabelRow>
-                <textarea
-                  aria-label="LaTeX expression"
-                  ref={input}
-                  autoFocus
-                  value={value}
-                  onSelect={(e) => {
-                    const target = e.currentTarget;
-                    setSelection(
-                      focusRange(value, target.selectionStart, target.selectionEnd) || {
-                        start: 0,
-                        end: 0,
-                      },
-                    );
-                  }}
-                  onChange={(e) => {
-                    const next = e.target.value;
-                    setValue(next);
-                    setSelection(
-                      focusRange(next, e.target.selectionStart, e.target.selectionEnd) || {
-                        start: 0,
-                        end: 0,
-                      },
-                    );
-                    const before = next.slice(0, e.target.selectionStart);
-                    const match = before.match(/\\([a-zA-Z]*)$/);
-                    setQuery(match && match[1] ? `\\${match[1]}` : "");
-                    setSuggestIndex(0);
-                  }}
-                  onKeyDown={(e) => {
-                    if (query && matches.length && (e.key === "Enter" || e.key === "Tab")) {
-                      e.preventDefault();
-                      const before = value.slice(0, e.currentTarget.selectionStart);
-                      const match = before.match(/\\([a-zA-Z]*)$/);
-                      const start = match
-                        ? e.currentTarget.selectionStart - match[0].length
-                        : e.currentTarget.selectionStart;
-                      const expanded = expand(matches[suggestIndex].template, start);
-                      const after = value.slice(e.currentTarget.selectionEnd);
-                      const next = value.slice(0, start) + expanded.text + after;
+                <div className="latex-source">
+                  <pre aria-hidden="true" className="latex-highlight">
+                    {value.split(/(\\[a-zA-Z]+|[{}_^]|\d+)/g).map((token, index) => (
+                      <span
+                        key={index}
+                        className={
+                          token.startsWith("\\")
+                            ? "latex-command"
+                            : /^[{}_^]$/.test(token)
+                              ? "latex-operator"
+                              : /^\d+$/.test(token)
+                                ? "latex-number"
+                                : undefined
+                        }
+                      >
+                        {token}
+                      </span>
+                    ))}
+                    {"\n"}
+                  </pre>
+                  <textarea
+                    spellCheck={false}
+                    onScroll={(e) => {
+                      const layer = e.currentTarget.previousElementSibling;
+                      if (layer) {
+                        layer.scrollTop = e.currentTarget.scrollTop;
+                        layer.scrollLeft = e.currentTarget.scrollLeft;
+                      }
+                    }}
+                    aria-label="LaTeX expression"
+                    ref={input}
+                    autoFocus
+                    value={value}
+                    onSelect={(e) => {
+                      const target = e.currentTarget;
+                      setSelection(
+                        focusRange(value, target.selectionStart, target.selectionEnd) || {
+                          start: 0,
+                          end: 0,
+                        },
+                      );
+                    }}
+                    onChange={(e) => {
+                      const next = e.target.value;
                       setValue(next);
-                      setQuery("");
-                      setFields(expanded.fields);
-                      setFieldIndex(0);
-                      requestAnimationFrame(() => {
-                        input.current?.focus();
-                        if (expanded.fields.length)
-                          input.current?.setSelectionRange(...expanded.fields[0]);
-                        else
-                          input.current?.setSelectionRange(
-                            start + expanded.text.length,
-                            start + expanded.text.length,
-                          );
-                      });
-                      return;
-                    }
-                    if (query && matches.length && e.key === "ArrowDown") {
-                      e.preventDefault();
-                      setSuggestIndex((i) => Math.min(i + 1, matches.length - 1));
-                      return;
-                    }
-                    if (query && matches.length && e.key === "ArrowUp") {
-                      e.preventDefault();
-                      setSuggestIndex((i) => Math.max(0, i - 1));
-                      return;
-                    }
-                    if (fields.length && e.key === "Tab") {
-                      e.preventDefault();
-                      const next = (fieldIndex + 1) % fields.length;
-                      setFieldIndex(next);
-                      input.current?.setSelectionRange(...fields[next]);
-                      return;
-                    }
-                    if (e.key === "Escape") {
-                      e.preventDefault();
-                      setEditing(false);
-                    }
-                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                      e.preventDefault();
-                      updateAttributes({ latex: value });
-                      setEditing(false);
-                    }
-                  }}
-                  placeholder="Type a mathematical expression…"
-                />
+                      setSelection(
+                        focusRange(next, e.target.selectionStart, e.target.selectionEnd) || {
+                          start: 0,
+                          end: 0,
+                        },
+                      );
+                      const before = next.slice(0, e.target.selectionStart);
+                      const match = before.match(/\\([a-zA-Z]*)$/);
+                      setQuery(match && match[1] ? `\\${match[1]}` : "");
+                      setSuggestIndex(0);
+                    }}
+                    onKeyDown={(e) => {
+                      if (query && matches.length && (e.key === "Enter" || e.key === "Tab")) {
+                        e.preventDefault();
+                        const before = value.slice(0, e.currentTarget.selectionStart);
+                        const match = before.match(/\\([a-zA-Z]*)$/);
+                        const start = match
+                          ? e.currentTarget.selectionStart - match[0].length
+                          : e.currentTarget.selectionStart;
+                        const expanded = expand(matches[suggestIndex].template, start);
+                        const after = value.slice(e.currentTarget.selectionEnd);
+                        const next = value.slice(0, start) + expanded.text + after;
+                        setValue(next);
+                        setQuery("");
+                        setFields(expanded.fields);
+                        setFieldIndex(0);
+                        requestAnimationFrame(() => {
+                          input.current?.focus();
+                          if (expanded.fields.length)
+                            input.current?.setSelectionRange(...expanded.fields[0]);
+                          else
+                            input.current?.setSelectionRange(
+                              start + expanded.text.length,
+                              start + expanded.text.length,
+                            );
+                        });
+                        return;
+                      }
+                      if (query && matches.length && e.key === "ArrowDown") {
+                        e.preventDefault();
+                        setSuggestIndex((i) => Math.min(i + 1, matches.length - 1));
+                        return;
+                      }
+                      if (query && matches.length && e.key === "ArrowUp") {
+                        e.preventDefault();
+                        setSuggestIndex((i) => Math.max(0, i - 1));
+                        return;
+                      }
+                      if (fields.length && e.key === "Tab") {
+                        e.preventDefault();
+                        const next = (fieldIndex + 1) % fields.length;
+                        setFieldIndex(next);
+                        input.current?.setSelectionRange(...fields[next]);
+                        return;
+                      }
+                      if (e.key === "Escape") {
+                        e.preventDefault();
+                        setEditing(false);
+                      }
+                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                        e.preventDefault();
+                        updateAttributes({ latex: value });
+                        setEditing(false);
+                      }
+                    }}
+                    placeholder="Type a mathematical expression…"
+                  />
+                </div>
                 {query && matches.length > 0 && (
                   <div className="latex-suggestions">
                     {matches.slice(0, 5).map((item, index) => (

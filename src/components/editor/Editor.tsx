@@ -835,7 +835,9 @@ export default function Editor() {
       }
       if (menu) {
         if (e.key === "Escape") {
+          e.preventDefault();
           setMenu(false);
+          editor.commands.focus();
           return;
         }
         if (e.key === "ArrowDown") {
@@ -1434,7 +1436,7 @@ export default function Editor() {
         onClick={() => activate(note)}
       >
         <NoteIcon icon={note.icon} className="tree-type-icon" />
-        <span>{note.title}</span>
+        <span className="tree-note-title">{note.title}</span>
         {note.is_favorite && <Star size={12} fill="currentColor" />}
       </Button>,
     );
@@ -1524,6 +1526,8 @@ export default function Editor() {
     });
     return items;
   })();
+  const folderNoteCount = notes.filter((note) => note.folder_id === currentFolder).length;
+  const childFolderCount = folders.filter((folder) => folder.parent_id === currentFolder).length;
   const renderLibraryNote = (note: Note) =>
     wrapNote(
       note,
@@ -1578,81 +1582,125 @@ export default function Editor() {
         className={`lemma-app library-app ${dark ? "dark" : ""} page-direction-${preferences.pageDirection} density-${preferences.density} ${preferences.showIcons ? "" : "hide-note-icons"}`}
         style={{ "--sidebar-width": `${preferences.sidebarWidth}px` } as React.CSSProperties}
       >
-        <aside className="sidebar">
-          <Button variant="ghost" className="brand brand-button" onClick={() => setLibrary(true)}>
-            <span className="brand-mark">λ</span>
-            <span>lemma</span>
-          </Button>
-          <Button variant="ghost" className="new-note" onClick={() => create(currentFolder)}>
-            <Plus size={15} />
-            New note<span>⌘ N</span>
-          </Button>
-          <Button
-            variant="ghost"
-            className={`side-link ${!favoritesOnly && !currentFolder ? "selected" : ""}`}
-            onClick={() => {
-              setCurrentFolder(null);
-              setFavoritesOnly(false);
-            }}
-          >
-            <Home size={15} /> All notes
-          </Button>
-          <Button
-            variant="ghost"
-            className={`side-link ${favoritesOnly ? "selected" : ""}`}
-            onClick={() => {
-              setCurrentFolder(null);
-              setFavoritesOnly(true);
-            }}
-          >
-            <Star size={15} /> Favorites
-          </Button>
-          <label className="search-field">
-            <Search size={14} />
-            <input
-              aria-label="Search notes"
-              placeholder="Search notes"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <kbd>⇧⌘ P</kbd>
-          </label>
-          {renderFolderNavigation()}
-          {(() => {
-            const all = [
-              ...new Set(notes.flatMap((n) => ((n as any).tags || []) as string[])),
-            ].sort();
-            return all.length ? (
-              <section className="sidebar-tags">
-                <div className="notes-label">Tags</div>
-                <div className="sidebar-tag-list">
-                  {all.map((t) => (
-                    <Button
-                      variant="ghost"
-                      key={t}
-                      className={`sidebar-tag ${tagFilter === t ? "active" : ""}`}
-                      onClick={() => setTagFilter(tagFilter === t ? null : t)}
-                    >
-                      {t}
-                    </Button>
-                  ))}
-                </div>
-              </section>
-            ) : null;
-          })()}
-          <div className="sidebar-bottom">
-            <Button variant="ghost" className="settings-item" onClick={() => setSettingsOpen(true)}>
-              <Settings2 size={15} /> Settings
+        {sidebar && (
+          <aside className="sidebar">
+            <div className="brand">
+              <Button variant="ghost" className="brand-button" onClick={() => setLibrary(true)}>
+                <span className="brand-mark">λ</span>
+                <span>lemma</span>
+              </Button>
+              <Button
+                variant="ghost"
+                className="icon-button sidebar-collapse"
+                aria-label="Collapse sidebar"
+                onClick={() => setSidebar(false)}
+              >
+                <PanelLeftClose size={16} />
+              </Button>
+            </div>
+            <Button variant="ghost" className="new-note" onClick={() => create(currentFolder)}>
+              <Plus size={15} />
+              New note<span>⌘ N</span>
             </Button>
-            <Button variant="ghost" className="settings-item" onClick={toggleTheme}>
-              <Contrast size={15} />
-              <span>{dark ? "Dark appearance" : "Light appearance"}</span>
+            <Button
+              variant="ghost"
+              className={`side-link ${!favoritesOnly && !currentFolder ? "selected" : ""}`}
+              onClick={() => {
+                setCurrentFolder(null);
+                setFavoritesOnly(false);
+              }}
+            >
+              <Home size={15} /> All notes
             </Button>
-          </div>
-        </aside>
+            <Button
+              variant="ghost"
+              className={`side-link ${favoritesOnly ? "selected" : ""}`}
+              onClick={() => {
+                setCurrentFolder(null);
+                setFavoritesOnly(true);
+              }}
+            >
+              <Star size={15} /> Favorites
+            </Button>
+            <label className="search-field">
+              <Search size={14} />
+              <input
+                aria-label="Search notes"
+                placeholder="Search notes"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <Button
+                variant="ghost"
+                className="search-shortcut"
+                aria-label="Open note search"
+                onClick={() => setSearchOpen(true)}
+              >
+                <kbd>⇧⌘ P</kbd>
+              </Button>
+            </label>
+            {renderFolderNavigation()}
+            {(() => {
+              const all = [
+                ...new Set(notes.flatMap((n) => ((n as any).tags || []) as string[])),
+              ].sort();
+              return all.length ? (
+                <section className="sidebar-tags">
+                  <div className="notes-label">Tags</div>
+                  <div className="sidebar-tag-list">
+                    {all.map((t) => (
+                      <Button
+                        variant="ghost"
+                        key={t}
+                        className={`sidebar-tag ${tagFilter === t ? "active" : ""}`}
+                        onClick={() => setTagFilter(tagFilter === t ? null : t)}
+                      >
+                        {t}
+                      </Button>
+                    ))}
+                  </div>
+                </section>
+              ) : null;
+            })()}
+            <div className="sidebar-bottom">
+              <Button
+                variant="ghost"
+                className="settings-item"
+                onClick={() => setSettingsOpen(true)}
+              >
+                <Settings2 size={15} /> Settings
+              </Button>
+              <Button variant="ghost" className="settings-item" onClick={toggleTheme}>
+                <Contrast size={15} />
+                <span>{dark ? "Dark appearance" : "Light appearance"}</span>
+              </Button>
+            </div>
+          </aside>
+        )}
         <section className="library-workspace">
           <header className="library-header">
-            <div>
+            <div className="library-heading">
+              {!sidebar && (
+                <Button
+                  variant="ghost"
+                  className="icon-button library-sidebar-open"
+                  aria-label="Open sidebar"
+                  onClick={() => setSidebar(true)}
+                >
+                  <PanelLeftOpen size={16} />
+                </Button>
+              )}
+              {currentFolder && (
+                <Button
+                  variant="ghost"
+                  className="library-back"
+                  onClick={() =>
+                    setCurrentFolder(folders.find((f) => f.id === currentFolder)?.parent_id || null)
+                  }
+                >
+                  ← {folderName(folders.find((f) => f.id === currentFolder)?.parent_id || null)}
+                </Button>
+              )}
               <span className="panel-eyebrow">YOUR WORKSPACE</span>
               <h1>
                 {favoritesOnly
@@ -1661,6 +1709,13 @@ export default function Editor() {
                     ? folderName(currentFolder)
                     : "All notes"}
               </h1>
+              {currentFolder && (
+                <p>
+                  {folderNoteCount} {folderNoteCount === 1 ? "note" : "notes"}
+                  {childFolderCount > 0 &&
+                    ` · ${childFolderCount} ${childFolderCount === 1 ? "folder" : "folders"}`}
+                </p>
+              )}
             </div>
             <div className="library-actions">
               <Button
@@ -1683,32 +1738,24 @@ export default function Editor() {
                 <Plus size={15} />
                 New note
               </Button>
-            </div>
-          </header>
-          <div className="library-content">
-            {currentFolder && (
-              <div className="library-folder-toolbar">
+              {currentFolder && (
                 <Button
                   variant="ghost"
-                  onClick={() =>
-                    setCurrentFolder(folders.find((f) => f.id === currentFolder)?.parent_id || null)
-                  }
-                >
-                  ← Back to{" "}
-                  {folderName(folders.find((f) => f.id === currentFolder)?.parent_id || null)}
-                </Button>
-                <Button
-                  variant="ghost"
+                  className="icon-button library-delete"
+                  aria-label="Delete folder"
+                  title="Delete folder"
                   onClick={() => {
                     const folder = folders.find((item) => item.id === currentFolder);
                     if (folder) void removeFolder(folder);
                   }}
                 >
-                  Delete folder
+                  <Trash2 size={16} />
                 </Button>
-              </div>
-            )}
-            {!search && !favoritesOnly && (
+              )}
+            </div>
+          </header>
+          <div className="library-content">
+            {!search && !favoritesOnly && childFolderCount > 0 && (
               <section className="library-folder-list" aria-label="Folders">
                 {folders
                   .filter((f) => f.parent_id === currentFolder)
@@ -1757,6 +1804,9 @@ export default function Editor() {
             {!notes.length && (
               <p className="library-empty">Create a class or a note to start your workspace.</p>
             )}
+            {currentFolder && notes.length > 0 && !search && folderNoteCount === 0 && (
+              <p className="library-empty">No notes here yet. Create a new note to get started.</p>
+            )}
             {notes.length > 0 && search && !searchResults.length && (
               <p className="library-empty">
                 No notes match “{search}”. Try another title or phrase.
@@ -1771,12 +1821,53 @@ export default function Editor() {
               role="dialog"
               aria-modal="true"
               aria-label="Search notes"
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  setSearchOpen(false);
+                  return;
+                }
+                if (event.key === "Tab") {
+                  const controls = Array.from(
+                    event.currentTarget.querySelectorAll<HTMLElement>(
+                      "input, button:not(:disabled)",
+                    ),
+                  );
+                  const first = controls[0],
+                    last = controls[controls.length - 1];
+                  if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last?.focus();
+                  }
+                  if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first?.focus();
+                  }
+                  return;
+                }
+                if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+                const results = Array.from(
+                  event.currentTarget.querySelectorAll<HTMLButtonElement>(
+                    ".command-results button",
+                  ),
+                );
+                if (!results.length) return;
+                event.preventDefault();
+                const current = results.indexOf(document.activeElement as HTMLButtonElement);
+                const next =
+                  event.key === "ArrowDown"
+                    ? (current + 1) % results.length
+                    : current <= 0
+                      ? results.length - 1
+                      : current - 1;
+                results[next].focus();
+              }}
               onClick={(e) => e.stopPropagation()}
             >
               <label className="search-field">
                 <Search size={16} />
                 <input
                   ref={commandSearchRef}
+                  aria-label="Search notes"
                   placeholder="Search notes…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -1788,9 +1879,21 @@ export default function Editor() {
                     }
                   }}
                 />
-                <kbd>ESC</kbd>
+                <Button
+                  variant="ghost"
+                  className="search-dismiss"
+                  aria-label="Close search"
+                  onClick={() => setSearchOpen(false)}
+                >
+                  Esc
+                </Button>
               </label>
               <div className="command-results">
+                {!searchResults.length && (
+                  <p className="search-empty" role="status">
+                    No notes found. Try another title or phrase.
+                  </p>
+                )}
                 {searchResults.slice(0, 8).map((note) => (
                   <Button
                     variant="ghost"
@@ -1815,7 +1918,23 @@ export default function Editor() {
                 ))}
               </div>
               <footer>
-                <kbd>⇧⌘ P</kbd> to search · <kbd>↵</kbd> to open
+                <span className="search-help">
+                  <kbd>↑</kbd>
+                  <kbd>↓</kbd> Navigate
+                </span>
+                <Button
+                  variant="ghost"
+                  className="search-open-action"
+                  disabled={!searchResults.length}
+                  onClick={() => {
+                    if (searchResults[0]) {
+                      activate(searchResults[0]);
+                      setSearchOpen(false);
+                    }
+                  }}
+                >
+                  Open first result <kbd>↵</kbd>
+                </Button>
               </footer>
             </div>
           </div>
@@ -1878,7 +1997,14 @@ export default function Editor() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-            <kbd>⇧⌘ P</kbd>
+            <Button
+              variant="ghost"
+              className="search-shortcut"
+              aria-label="Open note search"
+              onClick={() => setSearchOpen(true)}
+            >
+              <kbd>⇧⌘ P</kbd>
+            </Button>
           </label>
           {renderFolderNavigation()}
           {(() => {
@@ -2339,6 +2465,7 @@ export default function Editor() {
                     <label className="slash-search">
                       <Search size={16} />
                       <input
+                        autoFocus
                         aria-label="Search blocks"
                         placeholder="Search blocks…"
                         value={slashFilter}
@@ -2436,12 +2563,49 @@ export default function Editor() {
             role="dialog"
             aria-modal="true"
             aria-label="Search notes"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                setSearchOpen(false);
+                return;
+              }
+              if (event.key === "Tab") {
+                const controls = Array.from(
+                  event.currentTarget.querySelectorAll<HTMLElement>("input, button:not(:disabled)"),
+                );
+                const first = controls[0],
+                  last = controls[controls.length - 1];
+                if (event.shiftKey && document.activeElement === first) {
+                  event.preventDefault();
+                  last?.focus();
+                }
+                if (!event.shiftKey && document.activeElement === last) {
+                  event.preventDefault();
+                  first?.focus();
+                }
+                return;
+              }
+              if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+              const results = Array.from(
+                event.currentTarget.querySelectorAll<HTMLButtonElement>(".command-results button"),
+              );
+              if (!results.length) return;
+              event.preventDefault();
+              const current = results.indexOf(document.activeElement as HTMLButtonElement);
+              const next =
+                event.key === "ArrowDown"
+                  ? (current + 1) % results.length
+                  : current <= 0
+                    ? results.length - 1
+                    : current - 1;
+              results[next].focus();
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             <label className="search-field">
               <Search size={16} />
               <input
                 ref={commandSearchRef}
+                aria-label="Search notes"
                 placeholder="Search notes…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -2453,9 +2617,21 @@ export default function Editor() {
                   }
                 }}
               />
-              <kbd>ESC</kbd>
+              <Button
+                variant="ghost"
+                className="search-dismiss"
+                aria-label="Close search"
+                onClick={() => setSearchOpen(false)}
+              >
+                Esc
+              </Button>
             </label>
             <div className="command-results">
+              {!searchResults.length && (
+                <p className="search-empty" role="status">
+                  No notes found. Try another title or phrase.
+                </p>
+              )}
               {searchResults.slice(0, 8).map((note) => (
                 <Button
                   variant="ghost"
@@ -2480,7 +2656,23 @@ export default function Editor() {
               ))}
             </div>
             <footer>
-              <kbd>⇧⌘ P</kbd> to search · <kbd>↵</kbd> to open
+              <span className="search-help">
+                <kbd>↑</kbd>
+                <kbd>↓</kbd> Navigate
+              </span>
+              <Button
+                variant="ghost"
+                className="search-open-action"
+                disabled={!searchResults.length}
+                onClick={() => {
+                  if (searchResults[0]) {
+                    activate(searchResults[0]);
+                    setSearchOpen(false);
+                  }
+                }}
+              >
+                Open first result <kbd>↵</kbd>
+              </Button>
             </footer>
           </div>
         </div>
