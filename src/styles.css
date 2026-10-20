@@ -6435,3 +6435,617 @@ body,
     transition: none;
   }
 }
+
+/* Workspace documents, references and block actions */
+.lemma-app .reference-tools {
+  display: flex;
+  gap: 4px;
+  padding: 6px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.lemma-app .workspace.has-reference {
+  padding-right: min(42vw, 580px);
+  position: relative;
+}
+.lemma-app .reference-pane {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: min(42vw, 580px);
+  background: var(--surface);
+  border-left: 1px solid var(--line-strong);
+  display: flex;
+  flex-direction: column;
+  z-index: 45;
+  font-family: var(--font-ui, sans-serif);
+}
+.reference-pane header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px;
+}
+.reference-pane header strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reference-pane button,
+.attachment-block button {
+  color: var(--ink);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.reference-pane select {
+  margin: 0 16px 16px;
+  padding: 8px;
+  background: var(--soft);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.reference-body {
+  overflow: auto;
+  padding: 20px;
+  flex: 1;
+  min-height: 0;
+}
+.reference-body .reference-prose {
+  min-height: 0 !important;
+  padding: 0 !important;
+  columns: auto !important;
+  width: 100% !important;
+}
+.attachment-block {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  padding: 14px;
+  margin: 16px 0;
+  background: var(--soft);
+  break-inside: avoid;
+}
+.attachment-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font:
+    14px/1.5 Inter,
+    sans-serif;
+}
+.attachment-heading button:first-of-type {
+  flex: 1;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.attachment-heading small {
+  display: block;
+  color: var(--muted);
+}
+.attachment-preview iframe {
+  width: 100%;
+  height: 520px;
+  max-height: 65vh;
+  border: 0;
+  margin: 12px 0;
+  background: white;
+}
+.attachment-preview pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 13px/1.6 monospace;
+}
+.attachment-preview a {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--accent);
+  font:
+    13px Inter,
+    sans-serif;
+}
+.block-controls {
+  position: fixed;
+  display: flex;
+  z-index: 35;
+  color: var(--muted);
+}
+.block-controls > button {
+  width: 26px;
+  height: 28px;
+  background: var(--surface);
+  border: 0;
+  color: inherit;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.block-controls > button[draggable] {
+  cursor: grab;
+}
+.block-controls button:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.block-actions {
+  position: absolute;
+  left: 0;
+  top: 30px;
+  width: 160px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 5px;
+  box-shadow: var(--shadow-pop);
+}
+.block-actions button {
+  display: block;
+  width: 100%;
+  padding: 9px;
+  text-align: left;
+  background: none;
+  border: 0;
+  color: var(--ink);
+  font:
+    13px Inter,
+    sans-serif;
+}
+.icon-tabs,
+.icon-colors {
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+}
+.icon-tabs button {
+  padding: 6px 12px;
+  border: 0;
+  background: var(--soft);
+  color: var(--ink);
+  border-radius: 4px;
+  text-transform: capitalize;
+}
+.icon-tabs button[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.icon-colors button {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--surface);
+  outline: 1px solid transparent;
+}
+.icon-colors button[aria-pressed="true"] {
+  outline-color: var(--accent);
+}
+.svg-icon-grid {
+  max-height: 280px;
+  overflow: auto;
+  padding: 8px;
+}
+.svg-icon-grid button {
+  display: grid;
+  place-items: center;
+}
+.lemma-app .lemma-prose ol {
+  list-style: decimal outside;
+  padding-left: 1.7em;
+}
+.lemma-app .lemma-prose ul:not([data-type="taskList"]) {
+  list-style: disc outside;
+  padding-left: 1.7em;
+}
+.lemma-app .lemma-prose ol > li,
+.lemma-app .lemma-prose ul:not([data-type="taskList"]) > li {
+  display: list-item;
+}
+.lemma-app .lemma-prose li::marker {
+  color: var(--ink);
+}
+.lemma-app.page-layout-a4.page-direction-vertical .document::after {
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--paper) 0,
+    var(--paper) var(--page-margin),
+    transparent var(--page-margin),
+    transparent calc(var(--page-height) - var(--page-margin)),
+    var(--paper) calc(var(--page-height) - var(--page-margin)),
+    var(--paper) calc(var(--page-height) - 1px),
+    var(--line-strong) calc(var(--page-height) - 1px),
+    var(--line-strong) var(--page-height),
+    var(--desk) var(--page-height),
+    var(--desk) calc(var(--page-height) + var(--page-gap) - 1px),
+    var(--line-strong) calc(var(--page-height) + var(--page-gap) - 1px),
+    var(--line-strong) calc(var(--page-height) + var(--page-gap))
+  );
+}
+@media (max-width: 760px) {
+  .lemma-app .workspace.has-reference {
+    padding-right: 0;
+  }
+  .lemma-app .reference-pane {
+    width: 100%;
+  }
+}
+@media print {
+  .reference-pane,
+  .reference-tools,
+  .block-controls {
+    display: none !important;
+  }
+  .lemma-app .workspace.has-reference {
+    padding-right: 0;
+  }
+}
+
+/* Equation editing stays inside the viewport, with a dedicated expanded mode. */
+.lemma-app .equation-popup {
+  width: 560px;
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+}
+.lemma-app .equation-popup-editor {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+}
+.lemma-app .equation-popup .latex-source {
+  grid-column: 1;
+  grid-row: 2;
+  overflow: hidden;
+}
+.lemma-app .equation-popup .latex-source textarea {
+  height: 160px;
+  min-height: 90px;
+  max-height: min(50dvh, 500px);
+  resize: vertical;
+}
+.lemma-app .equation-popup .equation-popup-actions {
+  grid-row: 4;
+  grid-column: 1/-1;
+  justify-content: flex-end;
+}
+.lemma-app .equation-popup .equation-live-preview {
+  grid-row: 3;
+  min-width: 0;
+  max-height: 240px;
+}
+.lemma-app .equation-popup-label .equation-expand {
+  width: auto;
+  height: 28px;
+  margin-left: auto;
+  margin-right: 8px;
+  gap: 6px;
+}
+.lemma-app .latex-bracket-0 {
+  color: #b17900;
+}
+.lemma-app .latex-bracket-1 {
+  color: #8c45bf;
+}
+.lemma-app .latex-bracket-2 {
+  color: #1478b5;
+}
+.lemma-app .latex-bracket-3 {
+  color: #188267;
+}
+.lemma-app .latex-bracket-4 {
+  color: #bd4f83;
+}
+.lemma-app.dark .latex-bracket-0 {
+  color: #e9c46a;
+}
+.lemma-app.dark .latex-bracket-1 {
+  color: #c792ea;
+}
+.lemma-app.dark .latex-bracket-2 {
+  color: #82caff;
+}
+.lemma-app.dark .latex-bracket-3 {
+  color: #80cbc4;
+}
+.lemma-app.dark .latex-bracket-4 {
+  color: #f48fb1;
+}
+.lemma-app .latex-unmatched {
+  color: #d44c47;
+  text-decoration: underline wavy;
+}
+.equation-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 79;
+  background: #0007;
+}
+.lemma-app .equation-expanded {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(1200px, calc(100vw - 40px));
+  height: min(780px, calc(100dvh - 40px));
+  z-index: 80;
+}
+.lemma-app .equation-expanded .equation-popup-editor {
+  height: 100%;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: 32px minmax(0, 1fr) 42px;
+  padding: 20px;
+  gap: 20px;
+}
+.lemma-app .equation-expanded .latex-source {
+  grid-column: 1;
+  grid-row: 2;
+  min-height: 0;
+}
+.lemma-app .equation-expanded .latex-source textarea {
+  height: 100%;
+  max-height: 100%;
+  resize: none;
+}
+.lemma-app .equation-expanded .equation-live-preview {
+  grid-column: 2;
+  grid-row: 2;
+  max-height: none;
+  border-top: 0;
+  border-left: 1px solid var(--line);
+  padding: 24px;
+}
+.lemma-app .equation-expanded .equation-popup-actions {
+  grid-row: 3;
+}
+.export-dialog {
+  position: fixed;
+  z-index: 80;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(520px, calc(100vw - 32px));
+  background: var(--surface);
+  color: var(--ink);
+  padding: 28px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-pop);
+  font:
+    14px/1.5 Inter,
+    sans-serif;
+}
+.export-dialog h2 {
+  font-size: 22px;
+  margin: 0 0 8px;
+}
+.export-dialog p {
+  color: var(--muted);
+}
+.export-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  color: var(--muted);
+  background: none;
+  border: 0;
+}
+.export-formats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 24px 0 16px;
+}
+.export-formats button {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 18px;
+  text-align: left;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  background: var(--soft);
+  color: var(--ink);
+  cursor: pointer;
+}
+.export-formats button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.export-formats span,
+.export-note {
+  font-size: 12px;
+}
+.pdf-export-host.lemma-app {
+  position: absolute;
+  left: -12000px;
+  top: 0;
+  display: block;
+  width: 643px;
+  height: auto;
+  overflow: visible;
+  background: white;
+  color: #191919;
+  --ink: #191919;
+  --ink-strong: #191919;
+  --muted: #666;
+  --paper: #fff;
+  --surface: #fff;
+  --soft: #f7f7f5;
+  --line: #ddd;
+  --line-strong: #ccc;
+}
+.pdf-export-paper {
+  width: 643px;
+  background: white;
+  padding: 0;
+  overflow: visible;
+}
+.pdf-export-paper > h1 {
+  font:
+    600 28px/1.4 Inter,
+    sans-serif;
+  margin: 0 0 24px;
+}
+.pdf-export-host .lemma-prose {
+  width: 643px !important;
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  columns: auto !important;
+  color: #191919 !important;
+}
+.pdf-export-host .lemma-prose [data-type="page-break"] {
+  display: block !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+}
+.pdf-export-host .lemma-prose [data-type="page-break"]::before,
+.pdf-export-host .lemma-prose [data-type="page-break"]::after {
+  display: none;
+}
+.pdf-export-host .lemma-prose [data-type="columns"] {
+  grid-template-columns: repeat(var(--column-count, 2), minmax(0, 1fr));
+}
+.pdf-export-host .toggle-heading.collapsed [data-type="toggle-body"] {
+  display: block;
+}
+.pdf-export-host .equation-render {
+  overflow: visible;
+}
+@media (max-width: 700px) {
+  .lemma-app .equation-expanded .equation-popup-editor {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 32px minmax(140px, 1fr) minmax(120px, 1fr) 42px;
+    gap: 12px;
+    padding: 12px;
+  }
+  .lemma-app .equation-expanded .equation-live-preview {
+    grid-column: 1;
+    grid-row: 3;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+  .lemma-app .equation-expanded .equation-popup-actions {
+    grid-row: 4;
+  }
+}
+.lemma-app .gc-row textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 82px;
+  max-height: 320px;
+  resize: vertical;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--soft);
+  color: var(--ink);
+  padding: 10px;
+  font: 13px/1.6 var(--font-mono);
+  overflow-wrap: anywhere;
+}
+.lemma-app .resizable-image {
+  position: relative;
+  max-width: 100%;
+  margin: 16px 0;
+}
+.lemma-app .resizable-image img {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0;
+}
+.lemma-app .graph-block {
+  position: relative;
+  max-width: 100%;
+}
+.media-resize-handle {
+  position: absolute;
+  right: -8px;
+  bottom: -8px;
+  z-index: 4;
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  color: var(--accent);
+  background: var(--surface);
+  cursor: nwse-resize;
+  touch-action: none;
+  opacity: 0;
+}
+:is(.resizable-image, .graph-block):hover > .media-resize-handle,
+.media-resize-handle:focus-visible {
+  opacity: 1;
+}
+.lemma-app .lemma-prose [data-type="columns"] {
+  display: grid;
+  grid-template-columns: repeat(var(--column-count, 2), minmax(0, 1fr));
+  gap: 24px;
+  margin: 20px 0;
+}
+.lemma-app .lemma-prose [data-type="column"] {
+  min-width: 0;
+  border-left: 1px dashed var(--line);
+  padding-left: 12px;
+}
+.lemma-app .lemma-prose [data-type="column"]:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+.lemma-app .lemma-prose [data-type="column"] > p:first-child {
+  margin-top: 0;
+}
+.gc-expression-error {
+  display: block;
+  color: #d44c47;
+  font:
+    12px/1.5 Inter,
+    sans-serif;
+  padding: 6px 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+  .lemma-app .lemma-prose [data-type="columns"] {
+    grid-template-columns: 1fr;
+  }
+  .media-resize-handle {
+    opacity: 1;
+  }
+}
+@media print {
+  .media-resize-handle {
+    display: none !important;
+  }
+  .lemma-app .lemma-prose [data-type="column"] {
+    border: 0;
+  }
+}
+
+/* A reference reduces workspace width independently of the viewport. */
+.lemma-app .workspace.has-reference .topbar {
+  height: auto;
+  min-height: 68px;
+  flex-wrap: wrap;
+  padding-block: 8px;
+}
+.lemma-app .workspace.has-reference .breadcrumb {
+  flex: 1 1 100%;
+}
+.lemma-app .workspace.has-reference .top-actions {
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
+}
+.lemma-app .workspace.has-reference .graph-editor-panel:not(:empty) {
+  right: min(42vw, 580px);
+}
+@media (max-width: 760px) {
+  .lemma-app .workspace.has-reference .graph-editor-panel:not(:empty) {
+    right: 0;
+  }
+}

@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { NoteIcon } from "./NoteIcon";
 
+import { iconCatalog, iconColors, decodeIcon } from "./iconCatalog";
+
 const ICONS: Record<string, string[]> = {
   Maths: [
     "∑",
@@ -95,6 +97,8 @@ export function IconPicker({
   readOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState("icons");
+  const [color, setColor] = useState(decodeIcon(icon).color || "default");
   const [q, setQ] = useState("");
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -124,15 +128,30 @@ export function IconPicker({
       </button>
       {open && (
         <div className="icon-picker" role="dialog" aria-label="Choose an icon">
+          <div className="icon-tabs">
+            {["icons", "emoji"].map((t) => (
+              <button
+                key={t}
+                aria-pressed={tab === t}
+                onClick={() => {
+                  setTab(t);
+                  setQ("");
+                }}
+              >
+                {t === "icons" ? "Icons" : "Emoji"}
+              </button>
+            ))}
+          </div>
           <div className="icon-picker-head">
             <input
               autoFocus
-              placeholder="Type any emoji or symbol…"
+              aria-label="Search icons or enter emoji"
+              placeholder={tab === "icons" ? "Search icons…" : "Type an emoji or symbol…"}
               value={q}
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && q.trim()) {
-                  onChange(Array.from(q.trim())[0] ?? q.trim());
+                if (e.key === "Enter" && tab === "emoji" && q.trim()) {
+                  onChange(q.trim());
                   setOpen(false);
                 }
               }}
@@ -146,25 +165,66 @@ export function IconPicker({
               Reset
             </button>
           </div>
-          {Object.entries(ICONS).map(([group, list]) => (
-            <section key={group}>
-              <div className="icon-picker-group">{group}</div>
-              <div className="icon-picker-grid">
-                {list.map((i) => (
+          {tab === "icons" && (
+            <>
+              <div className="icon-colors">
+                {iconColors.map((c) => (
                   <button
-                    key={i}
-                    className={i === icon ? "active" : ""}
+                    key={c}
+                    aria-label={`Color ${c}`}
+                    aria-pressed={color === c}
+                    style={{ background: c === "default" ? "var(--ink)" : c }}
                     onClick={() => {
-                      onChange(i);
-                      setOpen(false);
+                      setColor(c);
+                      if (icon.startsWith("svg:")) onChange(`svg:${decodeIcon(icon).name}:${c}`);
                     }}
-                  >
-                    {i}
-                  </button>
+                  />
                 ))}
               </div>
-            </section>
-          ))}
+              <div className="icon-picker-grid svg-icon-grid">
+                {Object.entries(iconCatalog)
+                  .filter(([name]) =>
+                    name.toLowerCase().includes(q.toLowerCase().replace(/\s/g, "")),
+                  )
+                  .map(([name, Icon]) => (
+                    <button
+                      key={name}
+                      title={name}
+                      aria-label={name}
+                      onClick={() => {
+                        onChange(`svg:${name}:${color}`);
+                        setOpen(false);
+                      }}
+                    >
+                      <Icon size={22} style={{ color: color === "default" ? undefined : color }} />
+                    </button>
+                  ))}
+              </div>
+              {Object.keys(iconCatalog).every(
+                (name) => !name.toLowerCase().includes(q.toLowerCase().replace(/\s/g, "")),
+              ) && <p>No icons found.</p>}
+            </>
+          )}
+          {tab === "emoji" &&
+            Object.entries(ICONS).map(([group, list]) => (
+              <section key={group}>
+                <div className="icon-picker-group">{group}</div>
+                <div className="icon-picker-grid">
+                  {list.map((i) => (
+                    <button
+                      key={i}
+                      className={i === icon ? "active" : ""}
+                      onClick={() => {
+                        onChange(i);
+                        setOpen(false);
+                      }}
+                    >
+                      {i}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ))}
         </div>
       )}
     </div>

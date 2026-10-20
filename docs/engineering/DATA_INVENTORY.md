@@ -17,3 +17,9 @@ Source inspection: 2026-10-14. Internal working inventory, not publishable polic
 No dedicated advertising/analytics SDK was found in inspected application source. This does not exclude injected hosting/preview telemetry. Observe actual production-like network/storage behavior before deciding consent requirements. Do not add banners or invent lawful bases/retention/company identity.
 
 No registered privacy, cookies, terms, legal, contact or account-data route exists. Confirm jurisdiction and operator first, then propose accurate content, support/export/deletion behavior and links as a separately scoped task. Account export must include the agreed note/folder/history scope; browser print alone does not satisfy it.
+
+## Workspace files and recovery — 2026-10-20
+
+Uploaded PDF/text/LaTeX/Office files are base64-encoded in existing note JSON, and therefore follow notes into cloud persistence, history snapshots and token-shared content. Limits: 5 MiB per PDF, 2 MiB per other supported file; encoded data is larger than the original file and legacy page/content copies can further increase payloads. No external file-hosting service or storage bucket was introduced. In-app previews create local Blob URLs and revoke them when replaced/unmounted. PDF/text are previewed; Office documents are downloaded. Existing sharing and version-retention uncertainties apply to attachment contents too.
+
+Large device recovery drafts use IndexedDB `lemma-large-drafts` / `drafts` with the same owner-prefixed keys as localStorage. Successful matching cloud saves remove recovery entries from both stores. Sign-out does not establish erasure; browser quota/availability and cross-tab conflict limitations remain. Temporary PDF export DOM/canvases are removed after completion; downloads are user-controlled local files. Export dependencies execute client-side and do not add an external upload endpoint. Per-document PDF/LaTeX output is not a full account export.

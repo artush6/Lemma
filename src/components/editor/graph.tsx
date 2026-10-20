@@ -1,6 +1,8 @@
 // @ts-nocheck -- function-plot ships loose types
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { ResizeHandle } from "./ResizeHandle";
+import { graphLatex, splitGraphExpressions } from "./graphLatex";
 import katex from "katex";
 import { createPortal } from "react-dom";
 import { create, all } from "mathjs";
@@ -31,12 +33,13 @@ export function parseExpressions(lines: string[]): Parsed[] {
   const defs = new Map<string, any>();
   const out: Parsed[] = [];
   for (const raw of lines) {
-    const line = raw.trim().replace(/π/g, "pi").replace(/·/g, "*");
+    let line = raw.trim();
     if (!line) {
       out.push({ name: null, label: raw, kind: "fn", error: "empty" });
       continue;
     }
     try {
+      line = graphLatex(line);
       let name: string | null = null;
       let rhs = line;
       const m =
@@ -71,6 +74,23 @@ export function parseExpressions(lines: string[]): Parsed[] {
         out.push({ name, label: raw, kind: "points", compiled: primitiveOf.compile() });
         continue;
       }
+      // Substitute earlier user-defined functions into the AST, including shifted arguments.
+      let expansions = 0;
+      const expandReferences = (expression) =>
+        expression.transform((child) => {
+          if (child.isFunctionNode && defs.has(child.fn.name)) {
+            if (child.args.length !== 1) throw Error("Defined functions take one argument.");
+            if (++expansions > 64) throw Error("Too many nested function references.");
+            const argument = expandReferences(child.args[0]);
+            return defs
+              .get(child.fn.name)
+              .transform((part) =>
+                part.isSymbolNode && part.name === "x" ? argument.cloneDeep() : part,
+              );
+          }
+          return child;
+        });
+      node = expandReferences(node);
       if (name && !name.includes("'") && name !== "y") defs.set(name, node);
       const compiled = node.compile();
       compiled.evaluate({ x: 0.5 });
@@ -134,7 +154,7 @@ function Tex({ src }: { src: string }) {
     const lhs = parts.length > 1 ? parts[0].trim() : "";
     const rhs = parts[parts.length - 1].trim();
     let rhsTex = rhs;
-    if (!/^[a-zA-Z]'*\s*\(\s*x\s*\)$/.test(rhs)) {
+    if (!rhs.includes("\\") && !/^[a-zA-Z]'*\s*\(\s*x\s*\)$/.test(rhs)) {
       try {
         rhsTex = math.parse(rhs.replace(/π/g, "pi")).toTex({ parenthesis: "auto" });
       } catch {
@@ -205,7 +225,20 @@ export function GraphView({ node, updateAttributes, selected, editor }: NodeView
     parsed.forEach((p, i) => {
       if (p.error || hidden.includes(i)) return;
       const color = graphColors[i % graphColors.length];
-      if (p.kind === "fn") data.push({ fn: p.fn, graphType: "polyline", color, nSamples: 800 });
+      if (p.kind === "fn")
+        data.push({
+          fn: (scope: { x: number }) => {
+            try {
+              const value = p.compiled.evaluate({ x: scope.x });
+              return typeof value === "number" && Number.isFinite(value) ? value : NaN;
+            } catch {
+              return NaN;
+            }
+          },
+          graphType: "polyline",
+          color,
+          nSamples: 800,
+        });
       else
         data.push({
           fnType: "points",
@@ -222,8 +255,8 @@ export function GraphView({ node, updateAttributes, selected, editor }: NodeView
         color: graphColors[i % graphColors.length],
       }),
     );
-    const width = Math.max(300, Math.min(1200, el.clientWidth || 640));
-    const height = Math.max(240, Math.min(600, Number(a.height) || 340));
+    const width = Math.max(120, Math.min(1200, el.clientWidth || 640));
+    const height = Math.max(180, Math.min(600, Number(a.height) || 340));
     let yDomain: [number, number] | undefined;
     if (
       yMinRaw != null &&
@@ -297,9 +330,18 @@ export function GraphView({ node, updateAttributes, selected, editor }: NodeView
   return (
     <NodeViewWrapper
       className={`graph-block ${open ? "is-composing" : ""} ${selected ? "is-selected" : ""}`}
+      style={{ width: `${Math.max(20, Math.min(100, Number(a.width) || 100))}%` }}
       contentEditable={false}
       data-drag-handle
     >
+      {editor.isEditable && (
+        <ResizeHandle
+          label="Resize graph"
+          width={Number(a.width) || 100}
+          height={Number(a.height) || 340}
+          onResize={(width, height) => updateAttributes({ width, height })}
+        />
+      )}
       <div className="graph-main">
         <div ref={target} className="graph-target" />
         {opts.legend && parsed.some((p, i) => !p.error && !hidden.includes(i)) && (
@@ -359,18 +401,42 @@ export function GraphView({ node, updateAttributes, selected, editor }: NodeView
                 <i className={`graph-color-${i % graphColors.length}`} />
                 <div className="gc-field">
                   {focusRow !== i && v.trim() && !parsed[i]?.error ? (
-                    <Button variant="ghost" className="gc-rendered" onClick={() => setFocusRow(i)}>
+                    <Button
+                      variant="ghost"
+                      className="gc-rendered"
+                      aria-label={`Edit expression ${i + 1}`}
+                      onClick={() => setFocusRow(i)}
+                    >
                       <Tex src={v} />
                     </Button>
                   ) : (
-                    <input
+                    <textarea
+                      rows={3}
+                      spellCheck={false}
+                      onPaste={(event) => {
+                        const lines = splitGraphExpressions(
+                          event.clipboardData.getData("text/plain"),
+                        );
+                        if (lines.length > 1) {
+                          event.preventDefault();
+                          if (expr.length - 1 + lines.length > 8) {
+                            window.alert(
+                              "A graph supports up to eight expressions. Paste fewer lines.",
+                            );
+                            return;
+                          }
+                          updateAttributes({
+                            expressions: [...expr.slice(0, i), ...lines, ...expr.slice(i + 1)],
+                          });
+                        }
+                      }}
                       aria-label={`Expression ${i + 1}`}
                       autoFocus={focusRow === i}
                       value={v}
                       placeholder="f(x) = sin(x)"
                       onFocus={() => setFocusRow(i)}
                       onBlur={() => setFocusRow(null)}
-                      onChange={(e) => setExpr(i, e.target.value.slice(0, 160))}
+                      onChange={(e) => setExpr(i, e.target.value.slice(0, 8000))}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && expr.length < 8) {
                           e.preventDefault();
@@ -379,6 +445,11 @@ export function GraphView({ node, updateAttributes, selected, editor }: NodeView
                         }
                       }}
                     />
+                  )}
+                  {parsed[i]?.error && v.trim() && (
+                    <small role="status" className="gc-expression-error">
+                      {parsed[i].error}
+                    </small>
                   )}
                 </div>
                 <Button

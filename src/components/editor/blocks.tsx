@@ -1,3 +1,4 @@
+import { ResizeHandle } from "./ResizeHandle";
 import { Node, mergeAttributes } from "@tiptap/core";
 import {
   NodeViewContent,
@@ -35,12 +36,51 @@ export const imageFileContent = async (file: File) => {
   return { type: "image", attrs: { src, alt: file.name } };
 };
 
+function ImageView({ node, editor, updateAttributes }: NodeViewProps) {
+  const width = Math.max(20, Math.min(100, Number(node.attrs["width"]) || 100));
+  return (
+    <NodeViewWrapper
+      className="resizable-image"
+      style={{ width: `${width}%` }}
+      contentEditable={false}
+    >
+      {safeImageSource(String(node.attrs["src"] || "")) ? (
+        <img
+          src={node.attrs["src"]}
+          alt={node.attrs["alt"] || ""}
+          title={node.attrs["title"] || undefined}
+        />
+      ) : (
+        <span>Image unavailable</span>
+      )}
+      {editor.isEditable && (
+        <ResizeHandle
+          label="Resize image"
+          width={width}
+          onResize={(value) => updateAttributes({ width: value })}
+        />
+      )}
+    </NodeViewWrapper>
+  );
+}
 export const ImageBlock = Node.create({
   name: "image",
   group: "block",
   atom: true,
   draggable: true,
-  addAttributes: () => ({ src: { default: "" }, alt: { default: "" }, title: { default: null } }),
+  addAttributes: () => ({
+    src: { default: "" },
+    alt: { default: "" },
+    title: { default: null },
+    width: {
+      default: 100,
+      parseHTML: (el) => Number(el.getAttribute("data-width")) || 100,
+      renderHTML: (attrs) => ({
+        "data-width": attrs["width"],
+        style: `width:${attrs["width"]}%;height:auto`,
+      }),
+    },
+  }),
   parseHTML: () => [
     {
       tag: "img[src]",
@@ -48,6 +88,7 @@ export const ImageBlock = Node.create({
     },
   ],
   renderHTML: ({ HTMLAttributes }) => ["img", mergeAttributes(HTMLAttributes)],
+  addNodeView: () => ReactNodeViewRenderer(ImageView),
 });
 
 function MissingImageView({ node, editor, getPos }: NodeViewProps) {

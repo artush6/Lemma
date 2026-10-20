@@ -8,9 +8,11 @@ import {
 } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
 import katex from "katex";
+import { latexTokens } from "./latexTokens";
+import * as Dialog from "@radix-ui/react-dialog";
 import * as Popover from "@radix-ui/react-popover";
 import { Button } from "@/components/ui/button";
-import { Check, X } from "lucide-react";
+import { Check, X, Maximize2, Minimize2 } from "lucide-react";
 import "katex/dist/katex.min.css";
 import * as functionPlotModule from "function-plot";
 const functionPlot = ((functionPlotModule as any).default?.default ??
@@ -185,8 +187,55 @@ function sourceIndexFromPreview(
   }
   return found < 0 ? null : found + token.length;
 }
+function EquationSurface({ expanded, block, input, onClose, children }) {
+  const container = document.querySelector(".lemma-app");
+  const focus = (event) => {
+    event.preventDefault();
+    input.current?.focus();
+  };
+  if (expanded)
+    return (
+      <Dialog.Root
+        open
+        onOpenChange={(open) => {
+          if (!open) onClose();
+        }}
+      >
+        <Dialog.Portal container={container}>
+          <Dialog.Overlay className="equation-modal-backdrop" />
+          <Dialog.Content
+            className="equation-popup equation-expanded"
+            aria-describedby={undefined}
+            onOpenAutoFocus={focus}
+            onPointerDownOutside={(event) => event.preventDefault()}
+          >
+            <Dialog.Title className="sr-only">Equation editor</Dialog.Title>
+            {children}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+    );
+  return (
+    <Popover.Portal container={container}>
+      <Popover.Content
+        side="bottom"
+        align="start"
+        sideOffset={8}
+        collisionPadding={16}
+        className={"equation-popup " + (block ? "is-block" : "is-inline")}
+        aria-label="Edit equation"
+        onOpenAutoFocus={focus}
+        onCloseAutoFocus={(event) => event.preventDefault()}
+        onInteractOutside={(event) => event.preventDefault()}
+      >
+        {children}
+      </Popover.Content>
+    </Popover.Portal>
+  );
+}
 function EquationView({ node, updateAttributes, editor }: NodeViewProps) {
   const [editing, setEditing] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [value, setValue] = useState(String(node.attrs.latex || ""));
   const [query, setQuery] = useState("");
   const [suggestIndex, setSuggestIndex] = useState(0);
@@ -215,9 +264,9 @@ function EquationView({ node, updateAttributes, editor }: NodeViewProps) {
       className={block ? "equation-wrap" : "inline-equation-wrap"}
     >
       <Popover.Root
-        open={editing}
+        open={editing && !expanded}
         onOpenChange={(open) => {
-          if (!open) setEditing(false);
+          if (!open && !expanded) setEditing(false);
         }}
       >
         <Popover.Anchor asChild>
@@ -245,209 +294,198 @@ function EquationView({ node, updateAttributes, editor }: NodeViewProps) {
           </span>
         </Popover.Anchor>
         {editing && (
-          <Popover.Portal container={document.querySelector(".lemma-app")}>
-            <Popover.Content
-              side="bottom"
-              align="start"
-              sideOffset={8}
-              collisionPadding={16}
-              className={"equation-popup " + (block ? "is-block" : "is-inline")}
-              aria-label="Edit equation"
-              onOpenAutoFocus={(e) => {
-                e.preventDefault();
-                input.current?.focus();
-              }}
-              onCloseAutoFocus={(e) => e.preventDefault()}
-              onInteractOutside={() => setEditing(false)}
-            >
-              <EditorShell className="equation-popup-editor" contentEditable={false}>
-                <LabelRow className="equation-popup-label">
-                  <span>LaTeX</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Cancel equation editing"
-                    title="Cancel"
-                    onClick={() => setEditing(false)}
-                  >
-                    <X size={14} />
-                  </Button>
-                </LabelRow>
-                <div className="latex-source">
-                  <pre aria-hidden="true" className="latex-highlight">
-                    {value.split(/(\\[a-zA-Z]+|[{}_^]|\d+)/g).map((token, index) => (
-                      <span
-                        key={index}
-                        className={
-                          token.startsWith("\\")
-                            ? "latex-command"
-                            : /^[{}_^]$/.test(token)
-                              ? "latex-operator"
-                              : /^\d+$/.test(token)
-                                ? "latex-number"
-                                : undefined
-                        }
-                      >
-                        {token}
-                      </span>
-                    ))}
-                    {"\n"}
-                  </pre>
-                  <textarea
-                    spellCheck={false}
-                    onScroll={(e) => {
-                      const layer = e.currentTarget.previousElementSibling;
-                      if (layer) {
-                        layer.scrollTop = e.currentTarget.scrollTop;
-                        layer.scrollLeft = e.currentTarget.scrollLeft;
-                      }
-                    }}
-                    aria-label="LaTeX expression"
-                    ref={input}
-                    autoFocus
-                    value={value}
-                    onSelect={(e) => {
-                      const target = e.currentTarget;
-                      setSelection(
-                        focusRange(value, target.selectionStart, target.selectionEnd) || {
-                          start: 0,
-                          end: 0,
-                        },
-                      );
-                    }}
-                    onChange={(e) => {
-                      const next = e.target.value;
-                      setValue(next);
-                      setSelection(
-                        focusRange(next, e.target.selectionStart, e.target.selectionEnd) || {
-                          start: 0,
-                          end: 0,
-                        },
-                      );
-                      const before = next.slice(0, e.target.selectionStart);
+          <EquationSurface
+            expanded={expanded}
+            block={block}
+            input={input}
+            onClose={() => setEditing(false)}
+          >
+            <EditorShell className="equation-popup-editor" contentEditable={false}>
+              <LabelRow className="equation-popup-label">
+                <span>LaTeX</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="equation-expand"
+                  onClick={() => setExpanded((v) => !v)}
+                  title={expanded ? "Use compact editor" : "Expand to source and preview"}
+                >
+                  {expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}{" "}
+                  {expanded ? "Compact" : "Expand"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Cancel equation editing"
+                  title="Cancel"
+                  onClick={() => setEditing(false)}
+                >
+                  <X size={14} />
+                </Button>
+              </LabelRow>
+              <div className="latex-source">
+                <pre aria-hidden="true" className="latex-highlight">
+                  {latexTokens(value).map((token, index) => (
+                    <span key={index} className={token.className}>
+                      {token.text}
+                    </span>
+                  ))}
+                  {"\n"}
+                </pre>
+                <textarea
+                  spellCheck={false}
+                  onScroll={(e) => {
+                    const layer = e.currentTarget.previousElementSibling;
+                    if (layer) {
+                      layer.scrollTop = e.currentTarget.scrollTop;
+                      layer.scrollLeft = e.currentTarget.scrollLeft;
+                    }
+                  }}
+                  aria-label="LaTeX expression"
+                  ref={input}
+                  autoFocus
+                  value={value}
+                  onSelect={(e) => {
+                    const target = e.currentTarget;
+                    setSelection(
+                      focusRange(value, target.selectionStart, target.selectionEnd) || {
+                        start: 0,
+                        end: 0,
+                      },
+                    );
+                  }}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setValue(next);
+                    setSelection(
+                      focusRange(next, e.target.selectionStart, e.target.selectionEnd) || {
+                        start: 0,
+                        end: 0,
+                      },
+                    );
+                    const before = next.slice(0, e.target.selectionStart);
+                    const match = before.match(/\\([a-zA-Z]*)$/);
+                    setQuery(match && match[1] ? `\\${match[1]}` : "");
+                    setSuggestIndex(0);
+                  }}
+                  onKeyDown={(e) => {
+                    if (query && matches.length && (e.key === "Enter" || e.key === "Tab")) {
+                      e.preventDefault();
+                      const before = value.slice(0, e.currentTarget.selectionStart);
                       const match = before.match(/\\([a-zA-Z]*)$/);
-                      setQuery(match && match[1] ? `\\${match[1]}` : "");
-                      setSuggestIndex(0);
-                    }}
-                    onKeyDown={(e) => {
-                      if (query && matches.length && (e.key === "Enter" || e.key === "Tab")) {
+                      const start = match
+                        ? e.currentTarget.selectionStart - match[0].length
+                        : e.currentTarget.selectionStart;
+                      const expanded = expand(matches[suggestIndex].template, start);
+                      const after = value.slice(e.currentTarget.selectionEnd);
+                      const next = value.slice(0, start) + expanded.text + after;
+                      setValue(next);
+                      setQuery("");
+                      setFields(expanded.fields);
+                      setFieldIndex(0);
+                      requestAnimationFrame(() => {
+                        input.current?.focus();
+                        if (expanded.fields.length)
+                          input.current?.setSelectionRange(...expanded.fields[0]);
+                        else
+                          input.current?.setSelectionRange(
+                            start + expanded.text.length,
+                            start + expanded.text.length,
+                          );
+                      });
+                      return;
+                    }
+                    if (query && matches.length && e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setSuggestIndex((i) => Math.min(i + 1, matches.length - 1));
+                      return;
+                    }
+                    if (query && matches.length && e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setSuggestIndex((i) => Math.max(0, i - 1));
+                      return;
+                    }
+                    if (fields.length && e.key === "Tab") {
+                      e.preventDefault();
+                      const next = (fieldIndex + 1) % fields.length;
+                      setFieldIndex(next);
+                      input.current?.setSelectionRange(...fields[next]);
+                      return;
+                    }
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      setEditing(false);
+                    }
+                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault();
+                      updateAttributes({ latex: value });
+                      setEditing(false);
+                    }
+                  }}
+                  placeholder="Type a mathematical expression…"
+                />
+              </div>
+              {query && matches.length > 0 && (
+                <div className="latex-suggestions">
+                  {matches.slice(0, 5).map((item, index) => (
+                    <Button
+                      variant="ghost"
+                      type="button"
+                      key={item.label}
+                      className={index === suggestIndex ? "active" : ""}
+                      onMouseDown={(e) => {
                         e.preventDefault();
-                        const before = value.slice(0, e.currentTarget.selectionStart);
+                        const caret = input.current?.selectionStart || value.length;
+                        const before = value.slice(0, caret);
                         const match = before.match(/\\([a-zA-Z]*)$/);
-                        const start = match
-                          ? e.currentTarget.selectionStart - match[0].length
-                          : e.currentTarget.selectionStart;
-                        const expanded = expand(matches[suggestIndex].template, start);
-                        const after = value.slice(e.currentTarget.selectionEnd);
-                        const next = value.slice(0, start) + expanded.text + after;
+                        const start = match ? caret - match[0].length : caret;
+                        const expanded = expand(item.template, start);
+                        const next =
+                          value.slice(0, start) +
+                          expanded.text +
+                          value.slice(input.current?.selectionEnd || caret);
                         setValue(next);
                         setQuery("");
                         setFields(expanded.fields);
-                        setFieldIndex(0);
                         requestAnimationFrame(() => {
                           input.current?.focus();
                           if (expanded.fields.length)
                             input.current?.setSelectionRange(...expanded.fields[0]);
-                          else
-                            input.current?.setSelectionRange(
-                              start + expanded.text.length,
-                              start + expanded.text.length,
-                            );
                         });
-                        return;
-                      }
-                      if (query && matches.length && e.key === "ArrowDown") {
-                        e.preventDefault();
-                        setSuggestIndex((i) => Math.min(i + 1, matches.length - 1));
-                        return;
-                      }
-                      if (query && matches.length && e.key === "ArrowUp") {
-                        e.preventDefault();
-                        setSuggestIndex((i) => Math.max(0, i - 1));
-                        return;
-                      }
-                      if (fields.length && e.key === "Tab") {
-                        e.preventDefault();
-                        const next = (fieldIndex + 1) % fields.length;
-                        setFieldIndex(next);
-                        input.current?.setSelectionRange(...fields[next]);
-                        return;
-                      }
-                      if (e.key === "Escape") {
-                        e.preventDefault();
-                        setEditing(false);
-                      }
-                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                        e.preventDefault();
-                        updateAttributes({ latex: value });
-                        setEditing(false);
-                      }
-                    }}
-                    placeholder="Type a mathematical expression…"
-                  />
+                      }}
+                    >
+                      <code>{item.label}</code>
+                      <span>{item.template.replace(/[«»]/g, "")}</span>
+                    </Button>
+                  ))}
                 </div>
-                {query && matches.length > 0 && (
-                  <div className="latex-suggestions">
-                    {matches.slice(0, 5).map((item, index) => (
-                      <Button
-                        variant="ghost"
-                        type="button"
-                        key={item.label}
-                        className={index === suggestIndex ? "active" : ""}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          const caret = input.current?.selectionStart || value.length;
-                          const before = value.slice(0, caret);
-                          const match = before.match(/\\([a-zA-Z]*)$/);
-                          const start = match ? caret - match[0].length : caret;
-                          const expanded = expand(item.template, start);
-                          const next =
-                            value.slice(0, start) +
-                            expanded.text +
-                            value.slice(input.current?.selectionEnd || caret);
-                          setValue(next);
-                          setQuery("");
-                          setFields(expanded.fields);
-                          requestAnimationFrame(() => {
-                            input.current?.focus();
-                            if (expanded.fields.length)
-                              input.current?.setSelectionRange(...expanded.fields[0]);
-                          });
-                        }}
-                      >
-                        <code>{item.label}</code>
-                        <span>{item.template.replace(/[«»]/g, "")}</span>
-                      </Button>
-                    ))}
-                  </div>
-                )}
-                <Preview
-                  className="equation-live-preview"
-                  title="Click a symbol to jump to it in the code"
-                  onMouseDown={(e) => {
-                    const at = sourceIndexFromPreview(
-                      e.currentTarget as HTMLElement,
-                      e.target as HTMLElement,
-                      value,
-                    );
-                    if (at == null) return;
-                    e.preventDefault();
-                    const el = input.current;
-                    if (!el) return;
-                    el.focus();
-                    el.setSelectionRange(at, at);
-                    setSelection(focusRange(value, at, at) || { start: 0, end: 0 });
-                  }}
-                  dangerouslySetInnerHTML={{ __html: renderLatex(value, block, selection) }}
-                />
-                <div className="equation-popup-actions">
-                  <Button size="sm" className="equation-popup-done" onClick={commit}>
-                    Done <Check size={14} />
-                  </Button>
-                </div>
-              </EditorShell>
-            </Popover.Content>
-          </Popover.Portal>
+              )}
+              <Preview
+                className="equation-live-preview"
+                title="Click a symbol to jump to it in the code"
+                onMouseDown={(e) => {
+                  const at = sourceIndexFromPreview(
+                    e.currentTarget as HTMLElement,
+                    e.target as HTMLElement,
+                    value,
+                  );
+                  if (at == null) return;
+                  e.preventDefault();
+                  const el = input.current;
+                  if (!el) return;
+                  el.focus();
+                  el.setSelectionRange(at, at);
+                  setSelection(focusRange(value, at, at) || { start: 0, end: 0 });
+                }}
+                dangerouslySetInnerHTML={{ __html: renderLatex(value, block, selection) }}
+              />
+              <div className="equation-popup-actions">
+                <Button size="sm" className="equation-popup-done" onClick={commit}>
+                  Done <Check size={14} />
+                </Button>
+              </div>
+            </EditorShell>
+          </EquationSurface>
         )}
       </Popover.Root>
     </NodeViewWrapper>
@@ -563,6 +601,7 @@ export const Graph = Node.create({
   draggable: true,
   addAttributes() {
     return {
+      width: jsonAttr("width", 100),
       expressions: jsonAttr("expressions", ["x^2"]),
       hidden: jsonAttr("hidden", []),
       points: jsonAttr("points", []),

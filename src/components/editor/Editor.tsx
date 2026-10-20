@@ -1,4 +1,5 @@
 // @ts-nocheck -- ported from the original Lemma codebase, which used looser type settings
+import { Columns, Column, columnContent } from "./columns";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 const stableRouter = {
   push: (url: string, _o?: unknown) => window.history.pushState(null, "", url),
@@ -7,6 +8,12 @@ const useRouter = () => stableRouter;
 import type { User } from "@supabase/supabase-js";
 import type { LucideIcon } from "lucide-react";
 import { EditorContent, useEditor } from "@tiptap/react";
+import { loadDocument } from "./loadDocument";
+import { ExportDialog } from "./ExportDialog";
+import { draftStorage } from "@/lib/draftStorage";
+import { AttachmentBlock, readAttachment, attachmentAccept } from "./attachments";
+import { ReferencePane } from "./ReferencePane";
+import { BlockControls } from "./BlockControls";
 import BlockMenu from "./BlockMenu";
 import { Extension, InputRule } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
@@ -87,6 +94,9 @@ import { A4Pagination } from "./pagination";
 import { Focus as FocusExtension } from "@tiptap/extensions";
 
 const commands = [
+  "2 columns",
+  "3 columns",
+  "Document / PDF",
   "Text",
   "Heading 1",
   "Heading 2",
@@ -123,6 +133,9 @@ const commandShortcuts: Record<string, string> = {
   "Code block": "⌘⌥C",
 };
 const commandIcon = [
+  "Ⅱ",
+  "Ⅲ",
+  "↗",
   "T",
   "H1",
   "H2",
@@ -292,6 +305,30 @@ export default function Editor() {
     </>
   );
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [referenceOpen, setReferenceOpen] = useState(false);
+  const [referenceId, setReferenceId] = useState("");
+  const [referenceAttachment, setReferenceAttachment] = useState(null);
+  useEffect(() => {
+    const warn = () =>
+      window.alert(
+        "Device recovery storage is full or unavailable. Keep this tab open until cloud saving completes.",
+      );
+    window.addEventListener("lemma:draft-error", warn);
+    const open = (event) => {
+      setReferenceAttachment(event.detail);
+      setReferenceOpen(true);
+    };
+    window.addEventListener("lemma:reference", open);
+    return () => {
+      window.removeEventListener("lemma:reference", open);
+      window.removeEventListener("lemma:draft-error", warn);
+    };
+  }, []);
+  useEffect(() => {
+    setReferenceOpen(false);
+    setReferenceAttachment(null);
+    setReferenceId("");
+  }, [user?.id, sharedView]);
   const activeRef = useRef<Note | null>(active);
   const commandSearchRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -305,10 +342,14 @@ export default function Editor() {
   }, [user]);
   const activePages = useMemo(() => (active ? pagesFor(active) : []), [active]);
   const activePage = activePages.find((page) => page.id === activePageId) || activePages[0] || null;
+  const lastEditorContent = useRef("");
   const editor = useEditor({
     immediatelyRender: false,
     editable: !preview && !sharedView,
     extensions: [
+      Columns,
+      Column,
+      AttachmentBlock,
       SmartPaste,
       A4Pagination,
       FocusExtension.configure({ className: "has-focus", mode: "shallowest" }),
@@ -400,10 +441,11 @@ export default function Editor() {
           title: current.title,
           updated_at: new Date().toISOString(),
         };
+        lastEditorContent.current = JSON.stringify(documentContent(updated));
         activeRef.current = updated;
         setActive(updated);
         setNotes((ns) => ns.map((n) => (n.id === updated.id ? updated : n)));
-        localStorage.setItem(
+        draftStorage.setItem(
           draftStorageKey(userRef.current?.id, updated.id),
           JSON.stringify(updated),
         );
@@ -482,6 +524,7 @@ export default function Editor() {
       }
     }
     try {
+      await draftStorage.hydrate();
       const remote = await repository.list();
       let remoteFolders: Folder[] = [];
       try {
@@ -504,11 +547,12 @@ export default function Editor() {
         if (!mergedFolders.some((item) => item.id === folder.id)) mergedFolders.push(folder);
       setFolders(mergedFolders);
       setExpandedFolders(new Set(mergedFolders.map((folder) => folder.id)));
-      const local = Object.keys(localStorage)
+      const local = draftStorage
+        .keys()
         .filter((key) => key.startsWith(`${prefix}note:`))
         .map((key) => {
           try {
-            return JSON.parse(localStorage.getItem(key) || "null") as Note;
+            return JSON.parse(draftStorage.getItem(key) || "null") as Note;
           } catch {
             return null;
           }
@@ -545,7 +589,7 @@ export default function Editor() {
         demo.title = "Sommes géométriques";
         demo.content = sample;
         demo.pages = [{ ...pagesFor(demo)[0], content: sample }];
-        localStorage.setItem(draftStorageKey(user?.id, demo.id), JSON.stringify(demo));
+        draftStorage.setItem(draftStorageKey(user?.id, demo.id), JSON.stringify(demo));
         merged.unshift(demo);
         current = demo;
         try {
@@ -571,11 +615,12 @@ export default function Editor() {
         );
       } catch {}
       const prefix = `${ownerStoragePrefix(user?.id)}note:`;
-      const local = Object.keys(localStorage)
+      const local = draftStorage
+        .keys()
         .filter((key) => key.startsWith(prefix))
         .map((key) => {
           try {
-            return JSON.parse(localStorage.getItem(key) || "null") as Note;
+            return JSON.parse(draftStorage.getItem(key) || "null") as Note;
           } catch {
             return null;
           }
@@ -724,13 +769,20 @@ export default function Editor() {
     window.addEventListener("keydown", onDemoKey);
     return () => window.removeEventListener("keydown", onDemoKey);
   }, [editor]);
+  const loadedNoteId = useRef<string | null>(null);
   useEffect(() => {
     const page = activePage;
     if (!editor || !page) return;
     const frame = requestAnimationFrame(() => {
       const content = active ? documentContent(active) : page.content;
-      if (JSON.stringify(editor.getJSON()) !== JSON.stringify(content))
-        editor.commands.setContent(content, { emitUpdate: false });
+      if (
+        loadedNoteId.current !== active?.id ||
+        lastEditorContent.current !== JSON.stringify(content)
+      ) {
+        loadDocument(editor, content);
+        lastEditorContent.current = JSON.stringify(content);
+        loadedNoteId.current = active?.id || null;
+      }
     });
     return () => cancelAnimationFrame(frame);
   }, [editor, active?.id, activePageId, activePage]);
@@ -747,7 +799,7 @@ export default function Editor() {
         await repository.save(active);
         setSaved("saved");
         const key = draftStorageKey(user?.id, active.id);
-        if (localStorage.getItem(key) === JSON.stringify(active)) localStorage.removeItem(key);
+        if (draftStorage.getItem(key) === JSON.stringify(active)) draftStorage.removeItem(key);
       } catch {
         setSaved("offline");
       }
@@ -922,6 +974,33 @@ export default function Editor() {
       setMenu(false);
       setSlashFilter("");
       switch (c) {
+        case "2 columns":
+        case "3 columns":
+          editor
+            .chain()
+            .focus()
+            .insertContent([columnContent(c === "2 columns" ? 2 : 3), { type: "paragraph" }])
+            .run();
+          break;
+        case "Document / PDF": {
+          const input = document.createElement("input");
+          input.type = "file";
+          input.accept = attachmentAccept;
+          const noteId = activeRef.current?.id;
+          input.onchange = async () => {
+            const file = input.files?.[0];
+            if (!file) return;
+            try {
+              const content = await readAttachment(file);
+              if (!editor.isDestroyed && activeRef.current?.id === noteId)
+                editor.chain().focus().insertContent(content).run();
+            } catch (error) {
+              window.alert(error instanceof Error ? error.message : "Could not attach file.");
+            }
+          };
+          input.click();
+          break;
+        }
         case "Text":
           editor.chain().focus().setParagraph().run();
           break;
@@ -1060,6 +1139,36 @@ export default function Editor() {
     u.searchParams.set("page", page.id);
     router.push(`${u.pathname}${u.search}`, { scroll: false });
   };
+  const importDocument = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = attachmentAccept;
+    const ownerId = userRef.current?.id;
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const block = await readAttachment(file);
+        if (userRef.current?.id !== ownerId) return;
+        const n = newNote(currentFolder);
+        n.title = file.name;
+        n.content = { type: "doc", content: [block, { type: "paragraph" }] };
+        n.pages[0].content = n.content;
+        draftStorage.setItem(draftStorageKey(user?.id, n.id), JSON.stringify(n));
+        setNotes((ns) => [n, ...ns]);
+        activate(n);
+        setLibrary(false);
+        try {
+          await repository.save(n);
+        } catch {
+          setSaved("offline");
+        }
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : "Could not import file.");
+      }
+    };
+    input.click();
+  };
   const create = async (folderId: string | null = currentFolder) => {
     const n = newNote(folderId);
     activeRef.current = n;
@@ -1068,8 +1177,8 @@ export default function Editor() {
     setActive(n);
     setActivePageId(page.id);
     setLibrary(false);
-    editor?.commands.setContent(page.content, { emitUpdate: false });
-    localStorage.setItem(draftStorageKey(user?.id, n.id), JSON.stringify(n));
+    if (editor) loadDocument(editor, page.content);
+    draftStorage.setItem(draftStorageKey(user?.id, n.id), JSON.stringify(n));
     setSaved("saving");
     activate(n, page.id);
     try {
@@ -1095,7 +1204,7 @@ export default function Editor() {
     setNotes((ns) => ns.map((n) => (n.id === next.id ? next : n)));
     setActivePageId(page.id);
     setSaved("saving");
-    localStorage.setItem(draftStorageKey(user?.id, next.id), JSON.stringify(next));
+    draftStorage.setItem(draftStorageKey(user?.id, next.id), JSON.stringify(next));
     const u = new URL(location.href);
     u.searchParams.set("page", page.id);
     router.push(`${u.pathname}${u.search}`, { scroll: false });
@@ -1116,7 +1225,7 @@ export default function Editor() {
     activeRef.current = next;
     setNotes((ns) => ns.map((n) => (n.id === next.id ? next : n)));
     setActivePageId(nextPage.id);
-    localStorage.setItem(draftStorageKey(user?.id, next.id), JSON.stringify(next));
+    draftStorage.setItem(draftStorageKey(user?.id, next.id), JSON.stringify(next));
     const u = new URL(location.href);
     u.searchParams.set("page", nextPage.id);
     router.push(`${u.pathname}${u.search}`, { scroll: false });
@@ -1137,14 +1246,14 @@ export default function Editor() {
     setActive(next);
     activeRef.current = next;
     setNotes((ns) => ns.map((n) => (n.id === next.id ? next : n)));
-    localStorage.setItem(draftStorageKey(user?.id, next.id), JSON.stringify(next));
+    draftStorage.setItem(draftStorageKey(user?.id, next.id), JSON.stringify(next));
     setSaved("saving");
   };
   const deleteCurrent = async () => {
     if (!active || !window.confirm(`Delete “${active.title}”? This cannot be undone.`)) return;
     const id = active.id;
     setNotes((ns) => ns.filter((n) => n.id !== id));
-    localStorage.removeItem(draftStorageKey(user?.id, id));
+    draftStorage.removeItem(draftStorageKey(user?.id, id));
     setActive(notes.find((n) => n.id !== id) || null);
     try {
       await repository.remove(id);
@@ -1203,7 +1312,7 @@ export default function Editor() {
     setActive(n);
     activeRef.current = n;
     setNotes((ns) => ns.map((x) => (x.id === n.id ? n : x)));
-    localStorage.setItem(draftStorageKey(user?.id, n.id), JSON.stringify(n));
+    draftStorage.setItem(draftStorageKey(user?.id, n.id), JSON.stringify(n));
   };
   const createFolder = async (parent_id: string | null = null) => {
     const name = window.prompt(parent_id ? "Name this folder" : "Name this folder");
@@ -1250,7 +1359,7 @@ export default function Editor() {
     setActive(n);
     activeRef.current = n;
     setNotes((ns) => ns.map((x) => (x.id === n.id ? n : x)));
-    localStorage.setItem(draftStorageKey(user?.id, n.id), JSON.stringify(n));
+    draftStorage.setItem(draftStorageKey(user?.id, n.id), JSON.stringify(n));
   };
   const updateLabel = () => {
     if (!active) return;
@@ -1262,7 +1371,7 @@ export default function Editor() {
       const n = { ...active, document_label: document_label.trim().toUpperCase() };
       setActive(n);
       setNotes((ns) => ns.map((x) => (x.id === n.id ? n : x)));
-      localStorage.setItem(draftStorageKey(user?.id, n.id), JSON.stringify(n));
+      draftStorage.setItem(draftStorageKey(user?.id, n.id), JSON.stringify(n));
     }
   };
   const updatePageLayout = (page_layout: Note["page_layout"]) => {
@@ -1270,7 +1379,7 @@ export default function Editor() {
     const n = { ...active, page_layout };
     setActive(n);
     setNotes((ns) => ns.map((x) => (x.id === n.id ? n : x)));
-    localStorage.setItem(draftStorageKey(user?.id, n.id), JSON.stringify(n));
+    draftStorage.setItem(draftStorageKey(user?.id, n.id), JSON.stringify(n));
   };
   const shareLink = async () => {
     if (!active) return;
@@ -1297,7 +1406,7 @@ export default function Editor() {
     setActive(updated);
     activeRef.current = updated;
     setNotes((ns) => ns.map((n) => (n.id === updated.id ? updated : n)));
-    localStorage.setItem(draftStorageKey(user?.id, updated.id), JSON.stringify(updated));
+    draftStorage.setItem(draftStorageKey(user?.id, updated.id), JSON.stringify(updated));
     try {
       await repository.save(updated);
       setSaved("saved");
@@ -1305,10 +1414,7 @@ export default function Editor() {
       setSaved("offline");
     }
   };
-  const exportPDF = () => {
-    setPreview(true);
-    setTimeout(() => window.print(), 150);
-  };
+  const exportPDF = () => setExportOpen(true);
   const folderName = (id: string | null) => folders.find((f) => f.id === id)?.name || "All notes";
   const toggleFolderExpanded = (id: string) =>
     setExpandedFolders((current) => {
@@ -1352,7 +1458,7 @@ export default function Editor() {
       try {
         await repository.save(next);
       } catch {
-        localStorage.setItem(draftStorageKey(user?.id, id), JSON.stringify(next));
+        draftStorage.setItem(draftStorageKey(user?.id, id), JSON.stringify(next));
         setSaved("offline");
       }
     }
@@ -1382,7 +1488,7 @@ export default function Editor() {
     await repository.remove(note.id);
     setNotes((ns) => ns.filter((n) => n.id !== note.id));
     if (active?.id === note.id) showLibrary();
-    localStorage.removeItem(draftStorageKey(user?.id, note.id));
+    draftStorage.removeItem(draftStorageKey(user?.id, note.id));
   };
   const wrapNote = (note: Note, child: ReactNode) => (
     <OrganizerItem
@@ -1718,6 +1824,9 @@ export default function Editor() {
               )}
             </div>
             <div className="library-actions">
+              <Button variant="ghost" onClick={importDocument}>
+                <Plus size={16} /> Import document
+              </Button>
               <Button
                 variant="ghost"
                 className="icon-button"
@@ -2046,7 +2155,32 @@ export default function Editor() {
           </div>
         </aside>
       )}
-      <section className="workspace">
+      <section className={`workspace ${referenceOpen ? "has-reference" : ""}`}>
+        {!sharedView && (
+          <div className="reference-tools">
+            <Button variant="ghost" onClick={() => setReferenceOpen((v) => !v)}>
+              Open beside
+            </Button>
+            {!preview && (
+              <Button variant="ghost" onClick={() => runCommand("Document / PDF")}>
+                Attach document
+              </Button>
+            )}
+          </div>
+        )}
+        {referenceOpen && (
+          <ReferencePane
+            notes={sharedView ? [] : notes}
+            selected={referenceId}
+            attachment={referenceAttachment}
+            onSelect={(id) => {
+              setReferenceId(id);
+              setReferenceAttachment(null);
+            }}
+            onClose={() => setReferenceOpen(false)}
+          />
+        )}
+
         {!focus && (
           <header className="topbar">
             {!sidebar && !preview && (
@@ -2174,29 +2308,22 @@ export default function Editor() {
                   <span>Export</span>
                   <ChevronDown size={13} />
                 </Button>
-                {exportOpen && (
-                  <div className="export-menu">
-                    <Button variant="ghost" onClick={exportPDF}>
-                      <FileText size={15} /> Export as PDF
-                    </Button>
-                    {!sharedView && (
-                      <>
-                        <Button variant="ghost" onClick={loadHistory}>
-                          <Clock3 size={15} /> Version history
-                        </Button>
-                        {active && (
-                          <Button variant="ghost" onClick={rename}>
-                            <FileText size={15} /> Rename note
-                          </Button>
-                        )}
-                        {active?.share_token && (
-                          <Button variant="ghost" onClick={revokeShare}>
-                            <X size={15} /> Stop sharing
-                          </Button>
-                        )}
-                      </>
-                    )}
-                  </div>
+                {active?.share_token && !sharedView && (
+                  <Button variant="ghost" title="Stop sharing" onClick={revokeShare}>
+                    <X size={15} />
+                  </Button>
+                )}
+                {exportOpen && editor && (
+                  <ExportDialog
+                    title={active?.title || "Untitled"}
+                    editor={editor}
+                    onClose={() => setExportOpen(false)}
+                  />
+                )}
+                {!sharedView && (
+                  <Button variant="ghost" title="Version history" onClick={loadHistory}>
+                    <Clock3 size={15} />
+                  </Button>
                 )}
               </div>
             </div>
@@ -2253,7 +2380,7 @@ export default function Editor() {
               setActive(n);
               activeRef.current = n;
               setNotes((ns) => ns.map((x) => (x.id === n.id ? n : x)));
-              localStorage.setItem(draftStorageKey(user?.id, n.id), JSON.stringify(n));
+              draftStorage.setItem(draftStorageKey(user?.id, n.id), JSON.stringify(n));
               void repository.save(n).catch(() => {});
             };
             return (
@@ -2279,7 +2406,7 @@ export default function Editor() {
               setActive(n);
               activeRef.current = n;
               setNotes((ns) => ns.map((x) => (x.id === n.id ? n : x)));
-              localStorage.setItem(draftStorageKey(user?.id, n.id), JSON.stringify(n));
+              draftStorage.setItem(draftStorageKey(user?.id, n.id), JSON.stringify(n));
             }}
           />
           {(() => {
@@ -2289,7 +2416,7 @@ export default function Editor() {
               setActive(n);
               activeRef.current = n;
               setNotes((ns) => ns.map((x) => (x.id === n.id ? n : x)));
-              localStorage.setItem(draftStorageKey(user?.id, n.id), JSON.stringify(n));
+              draftStorage.setItem(draftStorageKey(user?.id, n.id), JSON.stringify(n));
               void repository.save(n).catch(() => {});
             };
             return (
@@ -2460,6 +2587,15 @@ export default function Editor() {
                 }}
               >
                 <EditorContent editor={editor} />
+                {!preview && !sharedView && (
+                  <BlockControls
+                    editor={editor}
+                    onInsert={() => {
+                      setMenu(true);
+                      setSlashFilter("");
+                    }}
+                  />
+                )}
                 {menu && (
                   <BlockMenu editor={editor}>
                     <label className="slash-search">
