@@ -1,3 +1,4 @@
+import { mapFieldRanges, latexArgumentRanges } from "./mathEditing";
 import { describe, it, expect } from "vitest";
 import { latexTokens } from "./latexTokens";
 import { graphLatex, splitGraphExpressions } from "./graphLatex";
@@ -60,5 +61,64 @@ describe("math workspace", () => {
     expect(tex).toContain("A \\& B");
     expect(tex).toContain("50\\%");
     expect(tex).toContain("\\frac{x}{2}");
+  });
+});
+
+describe("equation source editing", () => {
+  it("renders every source character including a trailing command slash", () => {
+    for (const value of ["\\", "x+\\", "\\frac{a}{b}", "\\alpha\\"])
+      expect(
+        latexTokens(value)
+          .map((token) => token.text)
+          .join(""),
+      ).toBe(value);
+  });
+  it("keeps later snippet arguments aligned after replacement", () => {
+    expect(
+      mapFieldRanges("\\frac{a}{b}", "\\frac{numerator}{b}", [
+        [6, 7],
+        [9, 10],
+      ]),
+    ).toEqual([
+      [6, 15],
+      [17, 18],
+    ]);
+    expect(latexArgumentRanges("\\frac{numerator}{b}")).toEqual([
+      [6, 15],
+      [17, 18],
+    ]);
+  });
+});
+
+describe("column navigation", () => {
+  it("moves into the next column and back without changing content", () => {
+    const editor = new Editor({
+      extensions: [StarterKit, Columns, Column],
+      content: { type: "doc", content: [columnContent(3)] },
+    });
+    editor.commands.setTextSelection(3);
+    const original = editor.getJSON();
+    editor.view.dom.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "ArrowRight",
+        ctrlKey: true,
+        altKey: true,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(editor.state.selection.from).toBe(7);
+    editor.view.dom.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "ArrowLeft",
+        ctrlKey: true,
+        altKey: true,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(editor.state.selection.from).toBe(3);
+    expect(editor.getJSON()).toEqual(original);
+    editor.destroy();
   });
 });

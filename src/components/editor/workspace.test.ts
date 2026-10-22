@@ -1,3 +1,4 @@
+import { fileBlocks, trackInsertion } from "./insertFiles";
 import { describe, it, expect } from "vitest";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
@@ -78,5 +79,52 @@ describe("workspace blocks", () => {
   it("only accepts palette colors in persisted SVG icons", () => {
     expect(decodeIcon("svg:Book:#2383e2").color).toBe("#2383e2");
     expect(decodeIcon("svg:Book:url(bad)").color).toBeUndefined();
+  });
+});
+
+describe("document insertion targets", () => {
+  it("maps an asynchronous file target through intervening text edits", () => {
+    const editor = new Editor({ extensions: [StarterKit], content: "<p>first</p><p>second</p>" });
+    editor.commands.setTextSelection(9);
+    const target = trackInsertion(editor);
+    editor.commands.insertContentAt(1, "++");
+    editor.commands.setTextSelection(1);
+    target.restore();
+    expect(editor.state.selection.from).toBe(11);
+    target.dispose();
+    editor.destroy();
+  });
+  it("allows explicit HTTPS PDF embeds and rejects active URL schemes", () => {
+    expect(
+      validAttachment({
+        name: "Lecture",
+        src: "https://example.com/lecture.pdf",
+        mime: "application/pdf",
+      }),
+    ).toBe(true);
+    expect(
+      validAttachment({ name: "Bad", src: "javascript:alert(1)", mime: "application/pdf" }),
+    ).toBe(false);
+    expect(
+      validAttachment({ name: "Bad", src: "https://example.com/file", mime: "text/plain" }),
+    ).toBe(false);
+  });
+});
+
+describe("dropped file batches", () => {
+  it("keeps supported image and document blocks and reports unsupported images", async () => {
+    const blocks = await fileBlocks([
+      new File(["image bytes"], "diagram.png", { type: "image/png" }),
+      new File(["notes"], "notes.txt", { type: "text/plain" }),
+    ]);
+    expect(blocks.map((block) => block.type)).toEqual(["image", "attachment"]);
+    await expect(
+      fileBlocks([new File(["svg"], "diagram.svg", { type: "image/svg+xml" })]),
+    ).rejects.toThrow("PNG, JPEG, GIF or WebP");
+    await expect(
+      fileBlocks([
+        new File([new Uint8Array(2 * 1024 * 1024 + 1)], "large.png", { type: "image/png" }),
+      ]),
+    ).rejects.toThrow("2 MB");
   });
 });

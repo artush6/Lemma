@@ -6,8 +6,9 @@ import {
   NodeViewWrapper,
   type NodeViewProps,
 } from "@tiptap/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import katex from "katex";
+import { mapFieldRanges, latexArgumentRanges } from "./mathEditing";
 import { latexTokens } from "./latexTokens";
 import * as Dialog from "@radix-ui/react-dialog";
 import * as Popover from "@radix-ui/react-popover";
@@ -243,11 +244,20 @@ function EquationView({ node, updateAttributes, editor }: NodeViewProps) {
   const [fieldIndex, setFieldIndex] = useState(0);
   const [selection, setSelection] = useState<SourceRange>({ start: 0, end: 0 });
   const input = useRef<HTMLTextAreaElement>(null);
+  const pendingSelection = useRef<[number, number] | null>(null);
+  useLayoutEffect(() => {
+    if (!pendingSelection.current || !input.current) return;
+    input.current.focus({ preventScroll: true });
+    input.current.setSelectionRange(...pendingSelection.current);
+    pendingSelection.current = null;
+  }, [value]);
   const matches = snippets.filter((s) => s.label.toLowerCase().startsWith(query.toLowerCase()));
   const beginEdit = () => {
     const latex = String(node.attrs.latex || "");
     setValue(latex);
     setSelection(focusRange(latex, 0, 0) || { start: 0, end: 0 });
+    setFields([]);
+    setQuery("");
     setEditing(true);
   };
   const block = node.type.name === "mathBlock";
@@ -356,6 +366,7 @@ function EquationView({ node, updateAttributes, editor }: NodeViewProps) {
                   }}
                   onChange={(e) => {
                     const next = e.target.value;
+                    setFields((current) => mapFieldRanges(value, next, current));
                     setValue(next);
                     setSelection(
                       focusRange(next, e.target.selectionStart, e.target.selectionEnd) || {
@@ -365,7 +376,7 @@ function EquationView({ node, updateAttributes, editor }: NodeViewProps) {
                     );
                     const before = next.slice(0, e.target.selectionStart);
                     const match = before.match(/\\([a-zA-Z]*)$/);
-                    setQuery(match && match[1] ? `\\${match[1]}` : "");
+                    setQuery(match ? match[0] : "");
                     setSuggestIndex(0);
                   }}
                   onKeyDown={(e) => {
@@ -383,21 +394,15 @@ function EquationView({ node, updateAttributes, editor }: NodeViewProps) {
                       setQuery("");
                       setFields(expanded.fields);
                       setFieldIndex(0);
-                      requestAnimationFrame(() => {
-                        input.current?.focus();
-                        if (expanded.fields.length)
-                          input.current?.setSelectionRange(...expanded.fields[0]);
-                        else
-                          input.current?.setSelectionRange(
-                            start + expanded.text.length,
-                            start + expanded.text.length,
-                          );
-                      });
+                      pendingSelection.current = expanded.fields[0] || [
+                        start + expanded.text.length,
+                        start + expanded.text.length,
+                      ];
                       return;
                     }
                     if (query && matches.length && e.key === "ArrowDown") {
                       e.preventDefault();
-                      setSuggestIndex((i) => Math.min(i + 1, matches.length - 1));
+                      setSuggestIndex((i) => Math.min(i + 1, Math.min(matches.length, 5) - 1));
                       return;
                     }
                     if (query && matches.length && e.key === "ArrowUp") {
@@ -405,15 +410,28 @@ function EquationView({ node, updateAttributes, editor }: NodeViewProps) {
                       setSuggestIndex((i) => Math.max(0, i - 1));
                       return;
                     }
-                    if (fields.length && e.key === "Tab") {
-                      e.preventDefault();
-                      const next = (fieldIndex + 1) % fields.length;
-                      setFieldIndex(next);
-                      input.current?.setSelectionRange(...fields[next]);
-                      return;
+                    if (e.key === "Tab") {
+                      const arguments_ = fields.length ? fields : latexArgumentRanges(value);
+                      if (arguments_.length) {
+                        e.preventDefault();
+                        const current = arguments_.findIndex(
+                          ([from, to]) =>
+                            e.currentTarget.selectionStart >= from &&
+                            e.currentTarget.selectionStart <= to,
+                        );
+                        const next =
+                          (current + (e.shiftKey ? -1 : 1) + arguments_.length) % arguments_.length;
+                        setFieldIndex(next);
+                        input.current?.setSelectionRange(...arguments_[next]);
+                        return;
+                      }
                     }
                     if (e.key === "Escape") {
                       e.preventDefault();
+                      if (query) {
+                        setQuery("");
+                        return;
+                      }
                       setEditing(false);
                     }
                     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
@@ -425,6 +443,9 @@ function EquationView({ node, updateAttributes, editor }: NodeViewProps) {
                   placeholder="Type a mathematical expression…"
                 />
               </div>
+              <span className="equation-input-hint">
+                Tab / Shift+Tab to jump between arguments · ⌘/Ctrl+Enter to apply
+              </span>
               {query && matches.length > 0 && (
                 <div className="latex-suggestions">
                   {matches.slice(0, 5).map((item, index) => (
@@ -435,7 +456,7 @@ function EquationView({ node, updateAttributes, editor }: NodeViewProps) {
                       className={index === suggestIndex ? "active" : ""}
                       onMouseDown={(e) => {
                         e.preventDefault();
-                        const caret = input.current?.selectionStart || value.length;
+                        const caret = input.current?.selectionStart ?? value.length;
                         const before = value.slice(0, caret);
                         const match = before.match(/\\([a-zA-Z]*)$/);
                         const start = match ? caret - match[0].length : caret;
@@ -443,15 +464,14 @@ function EquationView({ node, updateAttributes, editor }: NodeViewProps) {
                         const next =
                           value.slice(0, start) +
                           expanded.text +
-                          value.slice(input.current?.selectionEnd || caret);
+                          value.slice(input.current?.selectionEnd ?? caret);
                         setValue(next);
                         setQuery("");
                         setFields(expanded.fields);
-                        requestAnimationFrame(() => {
-                          input.current?.focus();
-                          if (expanded.fields.length)
-                            input.current?.setSelectionRange(...expanded.fields[0]);
-                        });
+                        pendingSelection.current = expanded.fields[0] || [
+                          start + expanded.text.length,
+                          start + expanded.text.length,
+                        ];
                       }}
                     >
                       <code>{item.label}</code>

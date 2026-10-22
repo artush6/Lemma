@@ -1,3 +1,4 @@
+import { motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, FilePlus2, FolderPlus, Search, Star } from "lucide-react";
 import type { Folder, Note } from "@/lib/notes";
@@ -37,6 +38,7 @@ export default function Home({
   onFavorites,
   onFolder,
 }: Props) {
+  const reduced = useReducedMotion();
   const now = new Date();
   const hour = now.getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
@@ -70,7 +72,12 @@ export default function Home({
   ];
 
   return (
-    <div className="home">
+    <motion.div
+      className="home"
+      initial={{ opacity: 0, y: reduced ? 0 : 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: reduced ? 0 : 0.2 }}
+    >
       <header className="home-head">
         <div>
           <h1>
@@ -164,6 +171,6 @@ export default function Home({
           )}
         </section>
       </div>
-    </div>
+    </motion.div>
   );
 }

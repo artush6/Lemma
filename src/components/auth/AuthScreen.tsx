@@ -1,11 +1,13 @@
 // @ts-nocheck -- ported from the original Lemma codebase, which used looser type settings
 
+import { motion, useReducedMotion } from "framer-motion";
 import { useState, type FormEvent } from "react";
 import { ArrowRight, Check, Sigma, UserRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 
 export default function AuthScreen() {
+  const reduced = useReducedMotion();
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -50,7 +52,12 @@ export default function AuthScreen() {
         </span>
         <span>lemma</span>
       </div>
-      <section className="auth-panel">
+      <motion.section
+        className="auth-panel"
+        initial={{ opacity: 0, y: reduced ? 0 : 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: reduced ? 0 : 0.24 }}
+      >
         <span className="auth-eyebrow">YOUR CS STUDY SPACE</span>
         <h1>
           Pick up where
@@ -107,7 +114,7 @@ export default function AuthScreen() {
           </p>
         )}
         <small>You stay signed in on this device.</small>
-      </section>
+      </motion.section>
       <div className="auth-equation" aria-hidden="true">
         <span>∑</span>
         <span>f : X → Y</span>

@@ -4285,18 +4285,6 @@ body {
   border: 0 !important;
   border-radius: 0 !important;
 }
-.lemma-app.dark.page-layout-a4 .doc-scroll {
-  background: #0b0b0b !important;
-}
-.lemma-app.dark.page-layout-a4 .document {
-  background: repeating-linear-gradient(
-    to bottom,
-    #000 0,
-    #000 1123px,
-    #0b0b0b 1123px,
-    #0b0b0b 1171px
-  ) !important;
-}
 .lemma-app .lemma-prose [data-type="page-break"] {
   background: transparent !important;
 }
@@ -9749,4 +9737,592 @@ html body .lemma-app .save-status.offline .status-dot {
     gap: 10px;
     font-size: 12px;
   }
+}
+
+/* Native sans typography, clear paper/desk contrast, and readable interaction targets. */
+:root {
+  --font-ui:
+    ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-serif: var(--font-ui);
+  --font-math-text: var(--font-ui);
+}
+html
+  body
+  :is(
+    .lemma-app,
+    .preferences-dialog,
+    .workspace-dialog,
+    .command-search,
+    .organizer-menu,
+    .auth-screen
+  ) {
+  --font-ui:
+    ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-serif: var(--font-ui);
+  --font-math-text: var(--font-ui);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.5;
+}
+html body .lemma-app {
+  --desk: #f0f0ee;
+  --paper: #fff;
+  --surface: #fff;
+  --ink: #37352f;
+  --ink-strong: #242321;
+  --muted: #74736f;
+  --shadow-paper: 0 0 0 1px #dededb, 0 4px 20px #00000006;
+}
+html body .lemma-app.dark {
+  --desk: #141414;
+  --paper: #242424;
+  --surface: #242424;
+  --soft: #2b2b2b;
+  --hover: #333;
+  --active: #3b3b3b;
+  --ink: #e6e6e4;
+  --ink-strong: #f3f3f2;
+  --muted: #b0afaa;
+  --line: #383838;
+  --shadow-paper: 0 0 0 1px #424242, 0 8px 28px #00000025;
+}
+html body .lemma-app .doc-scroll {
+  background: var(--desk) !important;
+}
+html body .lemma-app .document {
+  background: var(--paper) !important;
+  box-shadow: var(--shadow-paper) !important;
+}
+html body .lemma-app .note-chrome .document-title {
+  font-family: var(--font-ui) !important;
+  font-size: 26px !important;
+}
+html body .lemma-app .home-head h1,
+html body .lemma-app .space-title,
+html body .lemma-app .study-front,
+html body .lemma-app .study-back {
+  font-family: var(--font-ui) !important;
+}
+html body .lemma-app .home-continue {
+  padding: 24px;
+  gap: 10px;
+  min-height: 156px;
+}
+html body .lemma-app .home-continue strong {
+  font: 600 24px/1.3 var(--font-ui);
+}
+html body .lemma-app .home-continue small {
+  font-size: 14px;
+}
+html body .lemma-app .home-continue-cta {
+  font-size: 14px;
+  padding: 8px 14px;
+  border-radius: 7px;
+}
+html body .auth-screen .auth-panel {
+  font-family: var(--font-ui);
+  max-width: 540px;
+}
+html body .auth-screen .auth-panel h1 {
+  font-family: var(--font-ui);
+  font-size: 44px;
+  line-height: 1.08;
+  font-weight: 650;
+  letter-spacing: -0.03em !important;
+}
+html body .auth-screen .auth-panel > p {
+  font-size: 16px;
+  line-height: 1.6;
+}
+html body .auth-screen :is(.auth-input input, .auth-input button, .guest-sign-in) {
+  font-size: 15px;
+  min-height: 46px;
+}
+html body .auth-screen .auth-panel label,
+html body .auth-screen .auth-message {
+  font-size: 14px;
+}
+html body .lemma-app .caret-block-menu {
+  padding: 8px;
+  width: 320px;
+  max-width: calc(100vw - 24px);
+  overflow: auto;
+  scroll-padding-top: 72px;
+  border-radius: 10px !important;
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 10px 32px #0002 !important;
+}
+html body .lemma-app .caret-block-menu .slash-search {
+  position: sticky;
+  top: -8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  margin: 0 0 8px;
+  min-height: 44px;
+}
+html body .lemma-app .caret-block-menu .slash-search:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+html body .lemma-app .slash-search input {
+  height: 24px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font: 14px/24px var(--font-ui);
+}
+html body .lemma-app .caret-block-menu > button {
+  width: 100%;
+  height: 38px;
+  min-height: 38px;
+  padding: 0 9px;
+  font-size: 14px;
+}
+html body .lemma-app .caret-block-menu > button > kbd:empty {
+  display: none;
+}
+html body .lemma-app .caret-block-menu .slash-heading {
+  font-size: 12px;
+  padding: 7px 6px 9px;
+  position: static;
+}
+/* Shared source geometry prevents the native caret and highlighted text diverging. */
+html body .lemma-app .equation-popup .latex-source {
+  position: relative;
+  background: var(--soft);
+  isolation: isolate;
+}
+html body .lemma-app .equation-popup .latex-source :is(textarea, .latex-highlight) {
+  font: 14px/24px var(--font-mono) !important;
+  letter-spacing: 0 !important;
+  padding: 12px !important;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  tab-size: 2;
+}
+html body .lemma-app .equation-popup .latex-source .latex-highlight {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  color: var(--ink);
+  background: transparent;
+  pointer-events: none;
+  margin: 0;
+  overflow: hidden;
+}
+html body .lemma-app .equation-popup .latex-source textarea {
+  position: relative;
+  z-index: 2;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+  background: transparent !important;
+  caret-color: var(--ink-strong);
+  border-color: var(--line-strong);
+  width: 100%;
+  margin: 0;
+  outline: 0;
+}
+html body .lemma-app .equation-popup .latex-source textarea::placeholder {
+  -webkit-text-fill-color: var(--muted);
+}
+html body .lemma-app .latex-command {
+  color: var(--status-info);
+}
+html body .lemma-app .equation-input-hint {
+  grid-column: 1/-1;
+  grid-row: 3;
+  font: 12px/1.5 var(--font-ui);
+  color: var(--muted);
+}
+html body .lemma-app .equation-popup:not(.equation-expanded) .equation-live-preview {
+  grid-row: 4;
+}
+html body .lemma-app .equation-popup:not(.equation-expanded) .equation-popup-actions {
+  grid-row: 5;
+}
+html body .lemma-app .equation-expanded .equation-popup-editor {
+  grid-template-rows: 32px minmax(0, 1fr) 24px 42px;
+}
+html body .lemma-app .equation-expanded .latex-source {
+  height: 100%;
+  min-height: 0;
+}
+html body .lemma-app .equation-expanded .latex-source textarea {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  resize: none;
+}
+html body .lemma-app .equation-expanded .equation-input-hint {
+  grid-row: 3;
+  grid-column: 1/-1;
+}
+html body .lemma-app .equation-expanded .equation-popup-actions {
+  grid-row: 4;
+}
+html body .lemma-app .equation-popup .latex-suggestions {
+  position: absolute;
+  z-index: 4;
+  left: 16px;
+  right: 16px;
+  top: 72px;
+  max-height: 210px;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  box-shadow: var(--shadow-pop);
+}
+html body .lemma-app .equation-popup .latex-suggestions button {
+  width: 100%;
+  min-height: 38px;
+  font-size: 13px;
+  padding: 8px;
+  justify-content: space-between;
+}
+html body .lemma-app .equation-expanded .latex-suggestions {
+  right: calc(50% + 10px);
+  top: auto;
+  bottom: 90px;
+}
+.selection-toolbar {
+  position: fixed;
+  z-index: 74;
+  display: flex;
+  gap: 2px;
+  padding: 5px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow-pop);
+}
+.selection-toolbar button {
+  height: 32px;
+  width: 36px;
+  padding: 0;
+}
+.selection-toolbar button[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+html body .lemma-app .block-actions {
+  width: 264px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  left: 0;
+  top: 32px;
+}
+.block-actions > input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  min-height: 36px;
+  padding: 7px 9px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 14px var(--font-ui);
+  margin-bottom: 6px;
+}
+html body .lemma-app .block-actions > button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  font-size: 14px;
+  padding: 0 8px;
+  border-radius: 4px;
+  width: 100%;
+  text-align: left;
+}
+html body .lemma-app .block-actions > button > span {
+  flex: 1;
+}
+html body .lemma-app .block-actions > button:hover {
+  background: var(--hover);
+}
+html body .lemma-app .block-actions .is-destructive {
+  color: var(--status-error);
+}
+.block-menu-caption {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 12px/1.5 var(--font-ui);
+  color: var(--muted);
+  padding: 7px 8px;
+}
+.block-color-actions {
+  display: flex;
+  gap: 7px;
+  padding: 4px 8px;
+}
+.block-color-actions button {
+  width: 30px;
+  height: 30px;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  font-weight: 600;
+}
+.attachment-picker {
+  width: min(480px, calc(100vw - 24px));
+}
+.attachment-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+.attachment-tabs button[aria-selected="true"] {
+  background: var(--control-accent);
+}
+.attachment-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 28px 16px;
+  text-align: center;
+}
+.attachment-dropzone p,
+.attachment-link-form p {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  margin: 0;
+}
+.attachment-link-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.attachment-link-form input {
+  height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 14px;
+}
+.attachment-error {
+  color: var(--status-error);
+  font-size: 13px;
+}
+html body .lemma-app .reference-pane > header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.reference-pane > header strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+html body .lemma-app .reference-pane .attachment-preview {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+html body .lemma-app .reference-pane .attachment-preview iframe {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+html body .lemma-app .compact-outline {
+  display: block !important;
+  opacity: 1 !important;
+}
+/* The system monospace stack prevents a late font swap from resizing Monaco's Find widget. */
+html body .lemma-app .monaco-editor {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
+}
+html body .lemma-app .monaco-editor .find-widget {
+  box-sizing: content-box;
+  font:
+    13px/20px ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+html body .lemma-app .monaco-editor .find-widget :is(input, button) {
+  font-family: inherit !important;
+  font-size: 13px !important;
+  line-height: 20px;
+}
+html body .lemma-app .monaco-editor .find-widget input {
+  padding: 0 4px !important;
+  border-radius: 0 !important;
+  min-height: 0 !important;
+  box-shadow: none !important;
+}
+@media (max-width: 700px) {
+  html body .lemma-app .equation-expanded .equation-popup-editor {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 32px minmax(160px, 1fr) 24px minmax(120px, 1fr) 42px;
+  }
+  html body .lemma-app .equation-expanded .equation-live-preview {
+    grid-column: 1;
+    grid-row: 4;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+  html body .lemma-app .equation-expanded .equation-popup-actions {
+    grid-row: 5;
+  }
+  html body .lemma-app .equation-expanded .latex-suggestions {
+    right: 16px;
+    top: 90px;
+    bottom: auto;
+  }
+  html body .auth-screen .auth-panel h1 {
+    font-size: 34px;
+  }
+  .selection-toolbar button {
+    width: 34px;
+  }
+}
+@media print {
+  .selection-toolbar,
+  .attachment-picker {
+    display: none !important;
+  }
+  html body .lemma-app .doc-scroll {
+    background: white !important;
+  }
+}
+html body .lemma-app .equation-popup .latex-suggestions {
+  width: auto !important;
+  max-width: none;
+  font-size: 14px;
+}
+html body .lemma-app .equation-popup .latex-suggestions button code {
+  font: 14px var(--font-mono);
+}
+html body .lemma-app .equation-popup .latex-suggestions button > span {
+  font-size: 13px;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.block-actions > button > .lucide-chevron-right {
+  margin-left: auto;
+  transition: transform 160ms ease;
+}
+.block-actions > button > .lucide-chevron-right.is-expanded {
+  transform: rotate(90deg);
+}
+.block-turn-into {
+  overflow: hidden;
+  margin: 0 5px 5px 20px;
+  border-left: 1px solid var(--border);
+  padding-left: 6px;
+}
+.block-turn-into button {
+  width: 100%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .block-actions > button > .lucide-chevron-right {
+    transition: none;
+  }
+}
+
+/* Keep the A4 page gaps while using the same paper/desk tokens in both themes. */
+@media screen {
+  html body .lemma-app.page-layout-a4 .document {
+    background: repeating-linear-gradient(
+      to bottom,
+      var(--paper) 0,
+      var(--paper) var(--page-height),
+      var(--desk) var(--page-height),
+      var(--desk) calc(var(--page-height) + var(--page-gap))
+    ) !important;
+  }
+  html body .lemma-app.page-layout-a4.page-direction-horizontal .document {
+    background: repeating-linear-gradient(
+      to right,
+      var(--paper) 0,
+      var(--paper) 210mm,
+      var(--desk) 210mm,
+      var(--desk) calc(210mm + 48px)
+    ) !important;
+  }
+  html body .lemma-app.hide-boundaries .document {
+    background: var(--paper) !important;
+  }
+}
+
+.reference-placement-menu {
+  min-width: 210px;
+  font: 14px/1.5 var(--font-ui);
+}
+.reference-placement-menu [role^="menuitem"] {
+  min-height: 38px;
+}
+html body .lemma-app .reference-pane .reference-note-select {
+  margin: 0 16px 12px;
+  width: calc(100% - 32px);
+  min-height: 40px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 7px;
+  padding: 8px 12px;
+  font: 14px/1.5 var(--font-ui);
+}
+html body .lemma-app .workspace.has-reference.reference-left {
+  padding-right: 0;
+  padding-left: min(42vw, 580px);
+}
+html body .lemma-app .reference-left .reference-pane {
+  left: 0;
+  right: auto;
+  border-left: 0;
+  border-right: 1px solid var(--line-strong);
+}
+@media (max-width: 760px) {
+  html body .lemma-app .workspace.has-reference.reference-left {
+    padding: 0;
+  }
+}
+@media (min-width: 761px) {
+  .ide.has-pdf.pdf-right {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 1fr);
+  }
+  .ide.pdf-right .monaco-pane {
+    order: 0;
+  }
+  .ide.pdf-right .console {
+    order: 1;
+  }
+  .ide.pdf-right .pdf-pane {
+    order: 2;
+  }
+}
+.pdf-pane .pane-head > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

@@ -1,3 +1,6 @@
+import { ReferencePlacement } from "@/components/editor/ReferencePlacement";
+import { openDocumentWindow } from "@/components/editor/documentWindow";
+import { motion, useReducedMotion } from "framer-motion";
 import { WorkspaceSelect } from "@/components/ui/workspace-select";
 import { useWorkspaceDialogs } from "@/components/ui/workspace-dialogs";
 import { Button } from "@/components/ui/button";
@@ -88,6 +91,7 @@ const ident = (s: string) =>
     .replace(/^(\d)/, "_$1") || "dataset";
 
 export default function CodeLab({ ownerId, dark = false }: { ownerId?: string; dark?: boolean }) {
+  const reducedMotion = useReducedMotion();
   const { ask, confirm, dialogs } = useWorkspaceDialogs();
   const [datasets, setDatasets, datasetError] = useStored<Dataset[]>(
     ownerId,
@@ -123,6 +127,8 @@ export default function CodeLab({ ownerId, dark = false }: { ownerId?: string; d
   const modifier =
     typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl";
   const [pdf, setPdf] = useState<{ url: string; name: string } | null>(null);
+  const [pdfSide, setPdfSide] = useState<"left" | "right">("left");
+  const [pdfError, setPdfError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   useEffect(
     () => () => {
@@ -250,7 +256,12 @@ export default function CodeLab({ ownerId, dark = false }: { ownerId?: string; d
 
   if (!active)
     return (
-      <div className="space-page codelab">
+      <motion.div
+        className="space-page codelab"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: reducedMotion ? 0 : 0.18 }}
+      >
         {dialogs}
         <section className="space-main">
           <h1>Code Lab</h1>
@@ -259,10 +270,15 @@ export default function CodeLab({ ownerId, dark = false }: { ownerId?: string; d
             New file
           </Button>
         </section>
-      </div>
+      </motion.div>
     );
   return (
-    <div className="space-page codelab">
+    <motion.div
+      className="space-page codelab"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: reducedMotion ? 0 : 0.18 }}
+    >
       {dialogs}
       <aside className="space-rail">
         <div className="space-rail-head">
@@ -539,11 +555,31 @@ export default function CodeLab({ ownerId, dark = false }: { ownerId?: string; d
             </span>
           </div>
         ) : (
-          <div className={`ide ${pdf ? "has-pdf" : ""}`}>
+          <div className={`ide ${pdf ? `has-pdf pdf-${pdfSide}` : ""}`}>
             {pdf && (
               <div className="ide-pane pdf-pane">
                 <div className="pane-head">
                   <span>{pdf.name}</span>
+                  <ReferencePlacement
+                    side={pdfSide}
+                    onSide={setPdfSide}
+                    onWindow={async () => {
+                      try {
+                        if (
+                          await openDocumentWindow({
+                            name: pdf.name,
+                            src: pdf.url,
+                            mime: "application/pdf",
+                          })
+                        )
+                          setPdf(null);
+                      } catch (error) {
+                        setPdfError(
+                          error instanceof Error ? error.message : "Could not open a window.",
+                        );
+                      }
+                    }}
+                  />
                   <Button
                     variant="ghost"
                     type="button"
@@ -553,6 +589,11 @@ export default function CodeLab({ ownerId, dark = false }: { ownerId?: string; d
                     ×
                   </Button>
                 </div>
+                {pdfError && (
+                  <p role="alert" className="attachment-error">
+                    {pdfError}
+                  </p>
+                )}
                 <iframe title={pdf.name} src={pdf.url} />
               </div>
             )}
@@ -704,6 +745,6 @@ export default function CodeLab({ ownerId, dark = false }: { ownerId?: string; d
           </div>
         )}
       </section>
-    </div>
+    </motion.div>
   );
 }

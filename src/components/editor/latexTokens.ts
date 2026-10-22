@@ -4,7 +4,7 @@ export function latexTokens(source: string): LatexToken[] {
   const stack: { opening: string; token: LatexToken; depth: number }[] = [];
   const pairs: Record<string, string> = { "}": "{", ")": "(", "]": "[" };
   const tokens = (
-    source.match(/\\(?:[a-zA-Z]+|.)|[{}()[\]]|\d+(?:\.\d+)?|[_^]|[^\\{}()[\]\d_^]+/g) || []
+    source.match(/\\(?:[a-zA-Z]+|.)|\\$|[{}()[\]]|\d+(?:\.\d+)?|[_^]|[^\\{}()[\]\d_^]+/g) || []
   ).map((text) => {
     const token: LatexToken = { text };
     if (/^[{([]$/.test(text)) {

@@ -2,6 +2,9 @@
 import { lazy, Suspense } from "react";
 const CodeLab = lazy(() => import("@/components/spaces/CodeLab"));
 const Flashcards = lazy(() => import("@/components/spaces/Flashcards"));
+import { fileBlocks, trackInsertion } from "./insertFiles";
+import { AttachmentPicker } from "./AttachmentPicker";
+import { SelectionMenu } from "./SelectionMenu";
 import { SpaceSwitcher, type Space } from "@/components/spaces/SpaceSwitcher";
 import HomeDashboard from "./Home";
 import { Columns, Column, columnContent } from "./columns";
@@ -88,13 +91,7 @@ import { NoteIcon } from "./NoteIcon";
 import { Outline } from "./Outline";
 import { IconPicker, TagRow } from "./DocHeader";
 import { SmartPaste, mathFromHTML } from "./paste";
-import {
-  ImageBlock,
-  ImagePlaceholder,
-  ToggleHeading,
-  ToggleBody,
-  imageFileContent,
-} from "./blocks";
+import { ImageBlock, ImagePlaceholder, ToggleHeading, ToggleBody } from "./blocks";
 import { A4Pagination } from "./pagination";
 import { Focus as FocusExtension } from "@tiptap/extensions";
 
@@ -125,6 +122,9 @@ const commandShortcuts: Record<string, string> = {
   "Heading 2": "⌘⌥2",
   "Heading 3": "⌘⌥3",
   "Heading 4": "⌘⌥4",
+  "2 columns": "⌘⌥7",
+  "3 columns": "⌘⌥8",
+  "Document / PDF": "⌘⇧U",
   "Toggle heading": "## >",
   Image: "/image",
   "Bullet list": "⌘⇧8",
@@ -276,10 +276,9 @@ export default function Editor() {
     [favoritesOnly, setFavoritesOnly] = useState(false),
     [settingsOpen, setSettingsOpen] = useState(false),
     [searchOpen, setSearchOpen] = useState(false),
-    [fontFamily, setFontFamily] = useState("serif"),
+    [fontFamily, setFontFamily] = useState("sans"),
     [fontSize, setFontSize] = useState(16),
-    [demoMode, setDemoMode] = useState(false),
-    [outline, setOutline] = useState(true);
+    [demoMode, setDemoMode] = useState(false);
   const [space, setSpace] = useState<Space>(() => {
     if (typeof location === "undefined") return "notes";
     const params = new URLSearchParams(location.search);
@@ -355,6 +354,9 @@ export default function Editor() {
   );
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [referenceOpen, setReferenceOpen] = useState(false);
+  const [referenceSide, setReferenceSide] = useState<"left" | "right">("right");
+  const [attachmentPicker, setAttachmentPicker] = useState(false);
+  const attachmentTarget = useRef<ReturnType<typeof trackInsertion> | null>(null);
   const [referenceId, setReferenceId] = useState("");
   const [referenceAttachment, setReferenceAttachment] = useState(null);
   useEffect(() => {
@@ -378,6 +380,15 @@ export default function Editor() {
     setReferenceAttachment(null);
     setReferenceId("");
   }, [user?.id, sharedView]);
+  useEffect(() => {
+    setAttachmentPicker(false);
+    attachmentTarget.current?.dispose();
+    attachmentTarget.current = null;
+    return () => {
+      attachmentTarget.current?.dispose();
+      attachmentTarget.current = null;
+    };
+  }, [active?.id]);
   const activeRef = useRef<Note | null>(active);
   const commandSearchRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -503,6 +514,23 @@ export default function Editor() {
     },
     editorProps: {
       attributes: { class: "lemma-prose" },
+      handleKeyDown: (view, event) => {
+        if (
+          event.key === "/" &&
+          preferences.slashCommands &&
+          view.editable &&
+          view.state.selection.empty &&
+          view.state.selection.$from.parent.isTextblock &&
+          view.state.selection.$from.parent.textContent.trim() === ""
+        ) {
+          event.preventDefault();
+          setMenuIndex(0);
+          setSlashFilter("");
+          setMenu(true);
+          return true;
+        }
+        return false;
+      },
       transformPastedHTML: (html) => {
         const doc = new DOMParser().parseFromString(mathFromHTML(html), "text/html");
         doc.querySelectorAll("script,style,meta,link").forEach((node) => node.remove());
@@ -712,14 +740,17 @@ export default function Editor() {
       try {
         const prefs = {
           ...defaultPreferences,
-          ...JSON.parse(localStorage.getItem("lemma:preferences") || "{}"),
+          ...(localStorage.getItem("lemma:preferences")
+            ? JSON.parse(localStorage.getItem("lemma:preferences")!)
+            : {
+                font: localStorage.getItem("lemma:font") || defaultPreferences.font,
+                size: Number(localStorage.getItem("lemma:size")) || defaultPreferences.size,
+              }),
         };
         setPreferences(prefs);
         setFontFamily(prefs.font);
         setFontSize(prefs.size);
       } catch {}
-      setFontFamily(localStorage.getItem("lemma:font") || "serif");
-      setFontSize(Number(localStorage.getItem("lemma:size")) || 16);
       setDemoMode(localStorage.getItem("lemma:demo") === "true");
       setDarkinit(true);
     });
@@ -910,12 +941,23 @@ export default function Editor() {
     if (!editor) return;
     const onKey = (e: KeyboardEvent) => {
       if (
+        e.defaultPrevented ||
         space !== "notes" ||
         library ||
         !(e.target instanceof HTMLElement) ||
         !e.target.closest(".ProseMirror,.slash-menu,.block-menu")
       )
         return;
+      if ((e.metaKey || e.ctrlKey) && e.altKey && (e.code === "Digit7" || e.code === "Digit8")) {
+        e.preventDefault();
+        runCommandRef.current(e.code === "Digit7" ? "2 columns" : "3 columns");
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === "KeyU") {
+        e.preventDefault();
+        runCommandRef.current("Document / PDF");
+        return;
+      }
       if (snipFields.length && e.key === "Tab") {
         e.preventDefault();
         const next = fieldIndex + 1;
@@ -970,17 +1012,6 @@ export default function Editor() {
           e.preventDefault();
           runCommandRef.current(filteredCommands[menuIndex]);
           return;
-        }
-      }
-      if (preferences.slashCommands && e.key === "/" && editor.state.selection.empty && !menu) {
-        const { from } = editor.state.selection;
-        const $from = editor.state.doc.resolve(from);
-        if ($from.parent.isTextblock && $from.parent.textContent.trim() === "") {
-          setTimeout(() => {
-            editor.commands.deleteRange({ from, to: from + 1 });
-            setMenu(true);
-            setSlashFilter("");
-          }, 0);
         }
       }
       if (snipQuery && e.key.length === 1) {
@@ -1039,32 +1070,34 @@ export default function Editor() {
       if (!editor) return;
       setMenu(false);
       setSlashFilter("");
+      editor.commands.focus(undefined, { scrollIntoView: false });
       switch (c) {
         case "2 columns":
         case "3 columns":
           editor
             .chain()
             .focus()
-            .insertContent([columnContent(c === "2 columns" ? 2 : 3), { type: "paragraph" }])
+            .insertContent(columnContent(c === "2 columns" ? 2 : 3))
             .run();
+          {
+            const { $from } = editor.state.selection;
+            let found = -1;
+            editor.state.doc.descendants((node, pos) => {
+              if (
+                node.type.name === "columns" &&
+                pos <= $from.pos &&
+                pos + node.nodeSize >= $from.pos
+              )
+                found = pos;
+            });
+            if (found >= 0) editor.commands.setTextSelection(found + 3);
+          }
           break;
+        case "Image":
         case "Document / PDF": {
-          const input = document.createElement("input");
-          input.type = "file";
-          input.accept = attachmentAccept;
-          const noteId = activeRef.current?.id;
-          input.onchange = async () => {
-            const file = input.files?.[0];
-            if (!file) return;
-            try {
-              const content = await readAttachment(file);
-              if (!editor.isDestroyed && activeRef.current?.id === noteId)
-                editor.chain().focus().insertContent(content).run();
-            } catch (error) {
-              window.alert(error instanceof Error ? error.message : "Could not attach file.");
-            }
-          };
-          input.click();
+          attachmentTarget.current?.dispose();
+          attachmentTarget.current = trackInsertion(editor);
+          setAttachmentPicker(true);
           break;
         }
         case "Text":
@@ -1100,26 +1133,6 @@ export default function Editor() {
             })
             .run();
           break;
-        case "Image": {
-          const input = document.createElement("input");
-          input.type = "file";
-          input.accept = "image/png,image/jpeg,image/gif,image/webp";
-          input.onchange = async () => {
-            const file = input.files?.[0];
-            if (!file) return;
-            try {
-              const content = await imageFileContent(file);
-              if (content && !editor.isDestroyed)
-                editor.chain().focus().insertContent(content).run();
-            } catch (error) {
-              window.alert(
-                error instanceof Error ? error.message : "This image could not be opened.",
-              );
-            }
-          };
-          input.click();
-          break;
-        }
         case "Bullet list":
           editor.chain().focus().toggleBulletList().run();
           break;
@@ -2204,7 +2217,7 @@ export default function Editor() {
   if (!darkinit) return null;
   return (
     <main
-      className={`lemma-app ${dark ? "dark" : ""} ${preview ? "is-preview" : ""} ${focus ? "is-focus" : ""} ${demoMode ? "demo-mode" : ""} ${outline && outlineItems.length ? "has-outline" : ""} ${preferences.boundaries ? "" : "hide-boundaries"} ${preferences.pageNumbers ? "" : "hide-page-numbers"} ${preferences.printNumbers ? "print-page-numbers" : ""} page-direction-${preferences.pageDirection} density-${preferences.density} ${preferences.showIcons ? "" : "hide-note-icons"} page-layout-${active?.page_layout === "infinite" ? "infinite" : "a4"}`}
+      className={`lemma-app ${dark ? "dark" : ""} ${preview ? "is-preview" : ""} ${focus ? "is-focus" : ""} ${demoMode ? "demo-mode" : ""} ${outlineItems.length ? "has-outline" : ""} ${preferences.boundaries ? "" : "hide-boundaries"} ${preferences.pageNumbers ? "" : "hide-page-numbers"} ${preferences.printNumbers ? "print-page-numbers" : ""} page-direction-${preferences.pageDirection} density-${preferences.density} ${preferences.showIcons ? "" : "hide-note-icons"} page-layout-${active?.page_layout === "infinite" ? "infinite" : "a4"}`}
       style={
         {
           "--sidebar-width": `${preferences.sidebarWidth}px`,
@@ -2214,10 +2227,10 @@ export default function Editor() {
           "--doc-font-size": `${fontSize}px`,
           "--doc-font-family":
             fontFamily === "serif"
-              ? '"STIX Two Text", KaTeX_Main, Georgia, serif'
+              ? "KaTeX_Main, Georgia, serif"
               : fontFamily === "mono"
                 ? "ui-monospace, SFMono-Regular, Menlo, monospace"
-                : '"Nunito Sans", Inter, system-ui, sans-serif',
+                : 'ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
         } as React.CSSProperties
       }
     >
@@ -2307,7 +2320,9 @@ export default function Editor() {
           </div>
         </aside>
       )}
-      <section className={`workspace ${referenceOpen ? "has-reference" : ""}`}>
+      <section
+        className={`workspace ${referenceOpen ? `has-reference reference-${referenceSide}` : ""}`}
+      >
         {!sharedView && (
           <div className="reference-tools">
             <Button variant="ghost" onClick={() => setReferenceOpen((v) => !v)}>
@@ -2325,6 +2340,12 @@ export default function Editor() {
             notes={sharedView ? [] : notes}
             selected={referenceId}
             attachment={referenceAttachment}
+            side={referenceSide}
+            onSide={setReferenceSide}
+            onAttachment={(attachment) => {
+              setReferenceAttachment(attachment);
+              setReferenceId("");
+            }}
             onSelect={(id) => {
               setReferenceId(id);
               setReferenceAttachment(null);
@@ -2407,14 +2428,6 @@ export default function Editor() {
                     onClick={() => setFocus(true)}
                   >
                     <Focus size={16} />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="icon-button"
-                    title="Outline"
-                    onClick={() => setOutline((v) => !v)}
-                  >
-                    <BookOpen size={16} />
                   </Button>
                   <Button
                     variant="ghost"
@@ -2580,7 +2593,13 @@ export default function Editor() {
             );
           })()}
         </div>
-        <div className="editor-toolbar">
+        <div
+          className="editor-toolbar"
+          onMouseDownCapture={(event) => {
+            if (event.target instanceof Element && event.target.closest("button"))
+              event.preventDefault();
+          }}
+        >
           <div className="toolbar-history">
             <Button
               variant="ghost"
@@ -2714,7 +2733,39 @@ export default function Editor() {
           </Button>
         </div>
 
-        <div className="doc-scroll">
+        <div
+          className="doc-scroll"
+          onDragOver={(event) => {
+            if (event.dataTransfer.types.includes("Files") && !preview && !sharedView) {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "copy";
+            }
+          }}
+          onDropCapture={async (event) => {
+            if (!event.dataTransfer.files.length || preview || sharedView || !editor) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const noteId = activeRef.current?.id;
+            const point = editor.view.posAtCoords({ left: event.clientX, top: event.clientY });
+            if (point) editor.commands.setTextSelection(point.pos);
+            const target = trackInsertion(editor);
+            try {
+              const blocks = await fileBlocks(Array.from(event.dataTransfer.files));
+              if (activeRef.current?.id === noteId && !editor.isDestroyed) {
+                target.restore();
+                editor
+                  .chain()
+                  .focus(undefined, { scrollIntoView: false })
+                  .insertContent(blocks)
+                  .run();
+              }
+            } catch (error) {
+              window.alert(error instanceof Error ? error.message : "Could not open these files.");
+            } finally {
+              target.dispose();
+            }
+          }}
+        >
           <article className="document" id="document">
             {editor && (
               <div
@@ -2739,10 +2790,50 @@ export default function Editor() {
                 }}
               >
                 <EditorContent editor={editor} />
+                {!preview && !sharedView && <SelectionMenu editor={editor} />}
+                {attachmentPicker && (
+                  <AttachmentPicker
+                    onLink={(url) => {
+                      attachmentTarget.current?.restore();
+                      editor
+                        .chain()
+                        .focus(undefined, { scrollIntoView: false })
+                        .insertContent({
+                          type: "attachment",
+                          attrs: {
+                            src: url,
+                            mime: "application/pdf",
+                            name: decodeURIComponent(
+                              new URL(url).pathname.split("/").pop() || "Linked PDF",
+                            ),
+                          },
+                        })
+                        .run();
+                    }}
+                    onClose={() => {
+                      setAttachmentPicker(false);
+                      attachmentTarget.current?.dispose();
+                      attachmentTarget.current = null;
+                    }}
+                    onChoose={async (files) => {
+                      const noteId = activeRef.current?.id;
+                      const blocks = await fileBlocks(files);
+                      if (!editor.isDestroyed && activeRef.current?.id === noteId) {
+                        attachmentTarget.current?.restore();
+                        editor
+                          .chain()
+                          .focus(undefined, { scrollIntoView: false })
+                          .insertContent(blocks)
+                          .run();
+                      }
+                    }}
+                  />
+                )}
                 {!preview && !sharedView && (
                   <BlockControls
                     editor={editor}
                     onInsert={() => {
+                      setMenuIndex(0);
                       setMenu(true);
                       setSlashFilter("");
                     }}
@@ -2753,7 +2844,10 @@ export default function Editor() {
                     <label className="slash-search">
                       <Search size={16} />
                       <input
-                        autoFocus
+                        onFocus={(event) => {
+                          const menu = event.currentTarget.closest(".caret-block-menu");
+                          if (menu) menu.scrollTop = 0;
+                        }}
                         aria-label="Search blocks"
                         placeholder="Search blocks…"
                         value={slashFilter}
@@ -2771,6 +2865,7 @@ export default function Editor() {
                         variant="ghost"
                         key={c}
                         className={i === menuIndex ? "focused" : ""}
+                        onMouseDown={(event) => event.preventDefault()}
                         onClick={() => runCommand(c)}
                       >
                         <span className="slash-icon">{commandIcon[commands.indexOf(c)]}</span>
@@ -2809,7 +2904,7 @@ export default function Editor() {
           </article>
         </div>
         <div id="graph-editor-panel" className="graph-editor-panel" />
-        {outline && outlineItems.length > 0 && (
+        {outlineItems.length > 0 && (
           <Outline
             key={active?.id}
             items={outlineItems}

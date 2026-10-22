@@ -163,7 +163,7 @@ const CodeEditor = forwardRef<
         </div>
       }
       options={{
-        fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
         fontSize: 13.5,
         lineHeight: 22,
         minimap: { enabled: false },

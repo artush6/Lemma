@@ -1,3 +1,4 @@
+import { motion, useReducedMotion, type HTMLMotionProps } from "framer-motion";
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
@@ -38,9 +39,20 @@ export interface ButtonProps
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, ...props }, ref) => {
-    const Comp = asChild ? Slot : "button";
+    const reduced = useReducedMotion();
+    const classes = cn(buttonVariants({ variant, size, className }));
+    if (asChild) return <Slot className={classes} ref={ref} {...props} />;
+    if (props.onDrag || props.onDragStart || props.onDragEnd || props.onAnimationStart)
+      return <button className={classes} ref={ref} {...props} />;
     return (
-      <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />
+      <motion.button
+        className={classes}
+        ref={ref}
+        {...(props as unknown as HTMLMotionProps<"button">)}
+        whileHover={reduced || props.disabled ? {} : { y: -1 }}
+        whileTap={reduced || props.disabled ? {} : { scale: 0.97, y: 0 }}
+        transition={{ duration: 0.12, ease: "easeOut" }}
+      />
     );
   },
 );

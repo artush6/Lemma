@@ -42,7 +42,7 @@ export const defaultPreferences: Preferences = {
   density: "comfortable",
   sidebarWidth: 244,
   showIcons: true,
-  font: "serif",
+  font: "sans",
   size: 16,
   lineHeight: 1.65,
   spellcheck: true,
@@ -168,7 +168,7 @@ export function Settings({
                   ? "KaTeX_Main, Georgia, serif"
                   : p.font === "mono"
                     ? "ui-monospace, monospace"
-                    : "Inter, sans-serif",
+                    : 'ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
               "--doc-font-size": `${p.size}px`,
               "--doc-line-height": p.lineHeight,
             } as React.CSSProperties
@@ -281,7 +281,7 @@ export function Settings({
                       onChange={(e) => set("font", e.target.value)}
                     >
                       <option value="serif">Textbook · Computer Modern</option>
-                      <option value="sans">Sans serif · Inter</option>
+                      <option value="sans">Default · System sans</option>
                       <option value="mono">Monospace</option>
                     </select>
                   </Row>

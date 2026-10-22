@@ -6,7 +6,25 @@ export const Columns = Node.create({
   isolating: true,
   draggable: true,
   addKeyboardShortcuts() {
+    const move = (direction: number) => {
+      const { $from, empty } = this.editor.state.selection;
+      if (!empty) return false;
+      for (let depth = $from.depth; depth > 0; depth--) {
+        if ($from.node(depth).type.name !== "column") continue;
+        const parent = $from.node(depth - 1),
+          index = $from.index(depth - 1),
+          target = index + direction;
+        if (target < 0 || target >= parent.childCount) return false;
+        let pos = $from.before(depth);
+        if (direction > 0) pos += $from.node(depth).nodeSize;
+        else pos -= parent.child(target).nodeSize;
+        return this.editor.commands.setTextSelection(pos + 2);
+      }
+      return false;
+    };
     return {
+      "Mod-Alt-ArrowRight": () => move(1),
+      "Mod-Alt-ArrowLeft": () => move(-1),
       "Mod-Enter": () => {
         const { $from } = this.editor.state.selection;
         for (let depth = $from.depth; depth > 0; depth--) {

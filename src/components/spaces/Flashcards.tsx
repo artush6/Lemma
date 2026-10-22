@@ -1,3 +1,4 @@
+import { motion, useReducedMotion } from "framer-motion";
 import { useWorkspaceDialogs } from "@/components/ui/workspace-dialogs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +53,7 @@ const grades: { g: Grade; label: string; key: string }[] = [
 ];
 
 export default function Flashcards({ ownerId }: { ownerId?: string }) {
+  const reducedMotion = useReducedMotion();
   const { ask, confirm, dialogs } = useWorkspaceDialogs();
   const [decks, setDecks, deckError] = useStored<Deck[]>(ownerId, "cards:decks", () => [
     { id: "default", name: "Mathematics", created: Date.now() },
@@ -194,7 +196,12 @@ export default function Flashcards({ ownerId }: { ownerId?: string }) {
 
   if (!deck)
     return (
-      <div className="space-page flashcards">
+      <motion.div
+        className="space-page flashcards"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: reducedMotion ? 0 : 0.18 }}
+      >
         {dialogs}
         <section className="space-main">
           {(deckError || cardError) && (
@@ -214,10 +221,15 @@ export default function Flashcards({ ownerId }: { ownerId?: string }) {
             </Button>
           </div>
         </section>
-      </div>
+      </motion.div>
     );
   return (
-    <div className="space-page flashcards">
+    <motion.div
+      className="space-page flashcards"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: reducedMotion ? 0 : 0.18 }}
+    >
       {dialogs}
       <aside className="space-rail">
         <div className="space-rail-head">
@@ -349,16 +361,27 @@ export default function Flashcards({ ownerId }: { ownerId?: string }) {
                 {flipped ? (
                   <>
                     <hr />
-                    <div className="study-back" aria-live="polite">
+                    <motion.div
+                      className="study-back"
+                      aria-live="polite"
+                      initial={{ opacity: 0, y: reducedMotion ? 0 : 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: reducedMotion ? 0 : 0.2 }}
+                    >
                       <CardText text={current.back} />
-                    </div>
+                    </motion.div>
                   </>
                 ) : (
                   <span className="space-hint">Space to show answer</span>
                 )}
               </Button>
               {flipped && (
-                <div className="grade-row">
+                <motion.div
+                  className="grade-row"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: reducedMotion ? 0 : 0.16 }}
+                >
                   {grades.map(({ g, label, key }) => (
                     <Button
                       variant="ghost"
@@ -373,7 +396,7 @@ export default function Flashcards({ ownerId }: { ownerId?: string }) {
                       </em>
                     </Button>
                   ))}
-                </div>
+                </motion.div>
               )}
             </div>
           ) : (
@@ -530,6 +553,6 @@ export default function Flashcards({ ownerId }: { ownerId?: string }) {
           </>
         )}
       </section>
-    </div>
+    </motion.div>
   );
 }

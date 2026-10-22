@@ -4,6 +4,7 @@ This folder explains significant changes in enough detail to understand, use and
 
 ## Entries
 
+- [2026-10-22 — Editor interactions, typography and flexible reading](2026-10-22-editor-interactions-and-reading.md)
 - [2026-10-22 — Code themes, status colors, shortcuts and changelog policy](2026-10-22-code-themes-and-changelog.md)
 - [2026-10-22 — Lovable workspace and flashcard integration](2026-10-22-lovable-workspaces.md)
 

@@ -11,6 +11,13 @@ export type Attachment = { name: string; src: string; mime: string };
 export const attachmentAccept = ".pdf,.tex,.latex,.txt,.md,.csv,.doc,.docx,.ppt,.pptx,.xls,.xlsx";
 export function validAttachment(a: Attachment) {
   if (typeof a?.src !== "string" || a.src.length >= 8 * 1024 * 1024) return false;
+  if (a.mime === "application/pdf" && /^https:\/\//i.test(a.src)) {
+    try {
+      return new URL(a.src).protocol === "https:";
+    } catch {
+      return false;
+    }
+  }
   const match = a.src.match(
     /^data:(application\/pdf|application\/octet-stream|text\/plain);base64,([a-z0-9+/]*={0,2})$/i,
   );
@@ -38,6 +45,10 @@ export function AttachmentPreview({ attachment }: { attachment: Attachment }) {
   const [url, setUrl] = useState("");
   useEffect(() => {
     if (!validAttachment(attachment)) return;
+    if (attachment.src.startsWith("https://")) {
+      setUrl(attachment.src);
+      return;
+    }
     const bytes = Uint8Array.from(atob(attachment.src.split(",")[1] || ""), (c) => c.charCodeAt(0));
     const next = URL.createObjectURL(new Blob([bytes], { type: attachment.mime }));
     setUrl(next);
@@ -47,7 +58,7 @@ export function AttachmentPreview({ attachment }: { attachment: Attachment }) {
   return (
     <div className="attachment-preview">
       {attachment.mime === "application/pdf" && url ? (
-        <iframe title={attachment.name} src={url} />
+        <iframe title={attachment.name} src={url} referrerPolicy="no-referrer" />
       ) : attachment.mime === "text/plain" ? (
         <pre>
           {new TextDecoder().decode(

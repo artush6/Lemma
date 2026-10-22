@@ -1,32 +1,43 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import type { Editor } from "@tiptap/react";
 
 export default function BlockMenu({ editor, children }: { editor: Editor; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
+  const reduced = useReducedMotion();
   const [position, setPosition] = useState({ left: 16, top: 0, maxHeight: 0 });
   useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    element.scrollTop = 0;
     const update = () => {
-      if (editor.isDestroyed || !ref.current) return;
+      if (editor.isDestroyed) return;
       const caret = editor.view.coordsAtPos(editor.state.selection.from);
       const gap = 12;
       const below = window.innerHeight - caret.bottom - gap - 16;
       const above = caret.top - gap - 16;
-      const useBelow = below >= 180 || below >= above;
-      const maxHeight = Math.max(0, useBelow ? below : above);
-      const height = Math.min(ref.current.scrollHeight, maxHeight);
+      const useBelow = below >= 220 || below >= above;
+      const maxHeight = Math.max(100, Math.min(500, useBelow ? below : above));
+      const height = Math.min(element.scrollHeight, maxHeight);
       setPosition({
-        left: Math.max(16, Math.min(caret.left, window.innerWidth - ref.current.offsetWidth - 16)),
-        top: useBelow ? caret.bottom + gap : caret.top - gap - height,
+        left: Math.max(16, Math.min(caret.left, window.innerWidth - element.offsetWidth - 16)),
+        top: useBelow ? caret.bottom + gap : Math.max(16, caret.top - gap - height),
         maxHeight,
       });
     };
     update();
+    const frame = requestAnimationFrame(() => {
+      element.scrollTop = 0;
+      element.querySelector<HTMLInputElement>("input")?.focus({ preventScroll: true });
+      element.scrollTop = 0;
+    });
     const observer = new ResizeObserver(update);
-    if (ref.current) observer.observe(ref.current);
+    observer.observe(element);
     editor.on("selectionUpdate", update);
     window.addEventListener("scroll", update, true);
     window.addEventListener("resize", update);
     return () => {
+      cancelAnimationFrame(frame);
       observer.disconnect();
       editor.off("selectionUpdate", update);
       window.removeEventListener("scroll", update, true);
@@ -34,8 +45,15 @@ export default function BlockMenu({ editor, children }: { editor: Editor; childr
     };
   }, [editor]);
   return (
-    <div ref={ref} className="slash-menu caret-block-menu" style={position}>
+    <motion.div
+      ref={ref}
+      className="slash-menu caret-block-menu"
+      style={position}
+      initial={{ opacity: 0, y: reduced ? 0 : 5 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: reduced ? 0 : 0.16 }}
+    >
       {children}
-    </div>
+    </motion.div>
   );
 }
