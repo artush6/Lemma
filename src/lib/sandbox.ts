@@ -1,7 +1,7 @@
 // Runs personal snippets in a disposable worker with a hard time limit.
 // Worker isolation is not a security boundary for hostile code.
 export type RunResult = {
-  logs: { kind: "log" | "error"; text: string }[];
+  logs: { kind: "log" | "warning" | "error"; text: string }[];
   ms: number;
   timedOut: boolean;
 };
@@ -11,7 +11,7 @@ const block=()=>{throw new Error('Network access is disabled in Code Lab')};
 self.fetch=block;self.XMLHttpRequest=block;self.WebSocket=block;self.EventSource=block;self.importScripts=block;
 const fmt=v=>{if(typeof v==='string')return v;try{return JSON.stringify(v,null,2)}catch{return String(v)}};
 const out=[];const push=(kind,a)=>{if(out.length<500)out.push({kind,text:a.map(fmt).join(' ').slice(0,20000)})};
-const console={log:(...a)=>push('log',a),info:(...a)=>push('log',a),warn:(...a)=>push('log',a),error:(...a)=>push('error',a),table:(t)=>push('log',[table(t)])};
+const console={log:(...a)=>push('log',a),info:(...a)=>push('log',a),warn:(...a)=>push('warning',a),error:(...a)=>push('error',a),table:(t)=>push('log',[table(t)])};
 function parse(text){const ls=text.split(/\\r?\\n/).filter(l=>l.trim());if(!ls.length)return[];const sep=ls[0].includes('\\t')?'\\t':',';const head=ls[0].split(sep).map(s=>s.trim());return ls.slice(1).map(l=>{const c=l.split(sep);const o={};head.forEach((h,i)=>o[h]=(c[i]??'').trim());return o})}
 const tokens=t=>(String(t).toLowerCase().match(/[\\p{L}\\p{M}'’-]+/gu)||[]);
 const freq=a=>{const m=new Map();for(const x of a)m.set(x,(m.get(x)||0)+1);return [...m.entries()].sort((a,b)=>b[1]-a[1])};
@@ -110,4 +110,10 @@ export function runPython(
     };
     w.postMessage({ code, datasets });
   });
+}
+
+/** A warning is a completed run with feedback; an error or timeout is a failed run. */
+export function runOutcome(result: RunResult): "success" | "warning" | "error" {
+  if (result.timedOut || result.logs.some((log) => log.kind === "error")) return "error";
+  return result.logs.some((log) => log.kind === "warning") ? "warning" : "success";
 }

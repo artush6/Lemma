@@ -18,11 +18,19 @@ import {
   FolderPlus,
   ChevronRight,
   Download,
+  Search,
+  WrapText,
+  Braces,
+  CheckCircle2,
+  AlertTriangle,
+  CircleX,
+  LoaderCircle,
 } from "lucide-react";
 import { runCpp } from "@/lib/cpp.functions";
-import { runSandboxed, runPython, type RunResult } from "@/lib/sandbox";
+import { runSandboxed, runPython, runOutcome, type RunResult } from "@/lib/sandbox";
 import { useStored } from "./store";
-import CodeEditor from "./CodeEditor";
+import CodeEditor, { type CodeEditorHandle } from "./CodeEditor";
+import { WorkspaceShortcuts } from "./WorkspaceShortcuts";
 
 type Lang = "javascript" | "python" | "cpp";
 const langs: { id: Lang; label: string; ext: string; starter: string }[] = [
@@ -109,6 +117,11 @@ export default function CodeLab({ ownerId, dark = false }: { ownerId?: string; d
   const [tab, setTab] = useState<"code" | string>("code");
   const [result, setResult] = useState<RunResult | null>(null);
   const [running, setRunning] = useState(false);
+  const [editorReady, setEditorReady] = useState(false);
+  const editorRef = useRef<CodeEditorHandle>(null);
+  const outcome = result ? runOutcome(result) : null;
+  const modifier =
+    typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl";
   const [pdf, setPdf] = useState<{ url: string; name: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   useEffect(
@@ -128,6 +141,7 @@ export default function CodeLab({ ownerId, dark = false }: { ownerId?: string; d
   const run = useCallback(async () => {
     if (!active || running) return;
     setRunning(true);
+    setResult(null);
     const used = datasets
       .filter((d) => active.datasetIds.includes(d.id))
       .map((d) => ({ name: ident(d.name), text: d.text }));
@@ -156,7 +170,12 @@ export default function CodeLab({ ownerId, dark = false }: { ownerId?: string; d
   runRef.current = run;
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).closest?.(".monaco-editor")) return;
+      if (
+        e.defaultPrevented ||
+        e.repeat ||
+        (e.target as HTMLElement).closest?.(".monaco-editor,[role=dialog],[role=alertdialog]")
+      )
+        return;
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
         run();
@@ -407,6 +426,7 @@ export default function CodeLab({ ownerId, dark = false }: { ownerId?: string; d
             />
           </div>
           <div className="space-actions">
+            <WorkspaceShortcuts space="code" />
             <Button
               variant="ghost"
               className="ghost-btn"
@@ -488,7 +508,7 @@ export default function CodeLab({ ownerId, dark = false }: { ownerId?: string; d
                 <Button type="button" className="primary-btn" onClick={run} disabled={running}>
                   {running ? <Square size={14} /> : <Play size={14} />}
                   {running ? "Running" : "Run"}
-                  <kbd>⌘↵</kbd>
+                  <kbd>{modifier}↵</kbd>
                 </Button>
               </>
             )}
@@ -565,7 +585,41 @@ export default function CodeLab({ ownerId, dark = false }: { ownerId?: string; d
                   })}
                 </div>
               </div>
+              <div className="code-editing-tools" role="toolbar" aria-label="Code editing actions">
+                <Button
+                  variant="ghost"
+                  disabled={!editorReady}
+                  onClick={() => editorRef.current?.find()}
+                  title={`Find in code (${modifier}+F)`}
+                >
+                  <Search size={14} />
+                  Find
+                </Button>
+                <Button
+                  variant="ghost"
+                  disabled={!editorReady || lang !== "javascript"}
+                  onClick={() => editorRef.current?.format()}
+                  title={`Format JavaScript (${modifier === "⌘" ? "Shift+Option+F" : "Shift+Alt+F"})`}
+                >
+                  <Braces size={14} />
+                  Format
+                </Button>
+                <Button
+                  variant="ghost"
+                  disabled={!editorReady}
+                  onClick={() => editorRef.current?.toggleWrap()}
+                  title="Toggle word wrap (Alt+Z)"
+                >
+                  <WrapText size={14} />
+                  Wrap
+                </Button>
+                <span className="code-language-label">
+                  {langs.find((l) => l.id === lang)?.label}
+                </span>
+              </div>
               <CodeEditor
+                ref={editorRef}
+                onReady={setEditorReady}
                 value={active.code}
                 language={lang}
                 dark={dark}
@@ -577,6 +631,31 @@ export default function CodeLab({ ownerId, dark = false }: { ownerId?: string; d
               <div className="pane-head">
                 <span>Output</span>
                 <span className="pane-tools">
+                  {(running || outcome) && (
+                    <span
+                      className={`run-status status-${running ? "info" : outcome}`}
+                      role="status"
+                    >
+                      {running ? (
+                        <LoaderCircle size={13} />
+                      ) : outcome === "error" ? (
+                        <CircleX size={13} />
+                      ) : outcome === "warning" ? (
+                        <AlertTriangle size={13} />
+                      ) : (
+                        <CheckCircle2 size={13} />
+                      )}
+                      {running
+                        ? "Running"
+                        : outcome === "error"
+                          ? result?.timedOut
+                            ? "Timed out"
+                            : "Error"
+                          : outcome === "warning"
+                            ? "Warnings"
+                            : "Success"}
+                    </span>
+                  )}
                   {result && <em>{result.ms} ms</em>}
                   <Button
                     variant="ghost"
@@ -591,21 +670,34 @@ export default function CodeLab({ ownerId, dark = false }: { ownerId?: string; d
               <div className="console-body">
                 {!result ? (
                   <p className="space-hint">
-                    {running && lang === "python"
-                      ? "Starting Python… the first run takes a few seconds."
-                      : "Press Run or ⌘↵. JavaScript and Python run in a worker; C++ runs on Compiler Explorer."}
+                    {running
+                      ? lang === "python"
+                        ? "Starting Python… the first run takes a few seconds."
+                        : "Running your code…"
+                      : `Press Run or ${modifier}+Enter. JavaScript and Python run in a worker; C++ runs on Compiler Explorer.`}
                   </p>
                 ) : result.logs.length ? (
                   result.logs.map((l, i) => (
-                    <pre key={i} className={l.kind === "error" ? "is-error" : ""}>
+                    <pre
+                      key={i}
+                      className={
+                        l.kind === "error" ? "is-error" : l.kind === "warning" ? "is-warning" : ""
+                      }
+                    >
                       {l.text}
                     </pre>
                   ))
                 ) : (
                   <p className="space-hint">No output. Print something to see it here.</p>
                 )}
-                {result && !result.timedOut && (
-                  <p className="space-hint">=== Code execution finished ===</p>
+                {result && (
+                  <p className={`execution-summary status-${outcome}`}>
+                    {outcome === "error"
+                      ? "Execution stopped. Check the error above."
+                      : outcome === "warning"
+                        ? "Completed with warnings."
+                        : "Completed successfully."}
+                  </p>
                 )}
               </div>
             </div>

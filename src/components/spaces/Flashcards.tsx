@@ -15,6 +15,7 @@ import {
 } from "@/lib/srs";
 import { useStored } from "./store";
 import katex from "katex";
+import { WorkspaceShortcuts } from "./WorkspaceShortcuts";
 
 function CardText({ text }: { text: string }) {
   return (
@@ -270,6 +271,7 @@ export default function Flashcards({ ownerId }: { ownerId?: string }) {
             />
           </div>
           <div className="space-actions">
+            <WorkspaceShortcuts space="cards" />
             {studying ? (
               <Button
                 variant="ghost"

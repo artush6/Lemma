@@ -64,3 +64,7 @@ for local development.
 - TypeScript
 - React
 - Tailwind CSS
+
+## Changelog
+
+See [changelog/](changelog/README.md) for significant changes, explanations, usage examples, verification results and known limitations. Agents must follow the changelog rule in [AGENTS.md](AGENTS.md).

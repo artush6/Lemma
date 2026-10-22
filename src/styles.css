@@ -9536,3 +9536,217 @@ html body .lemma-app .equation-popup textarea {
     padding-top: 4px;
   }
 }
+
+/* Semantic feedback: labels and icons carry meaning alongside color. */
+:root {
+  --status-error: #b91c1c;
+  --status-error-soft: #fef2f2;
+  --status-warning: #b45309;
+  --status-warning-soft: #fff7ed;
+  --status-success: #15803d;
+  --status-success-soft: #f0fdf4;
+  --status-info: #1d4ed8;
+  --status-info-soft: #eff6ff;
+}
+html.dark {
+  --status-error: #fca5a5;
+  --status-error-soft: #2a171c;
+  --status-warning: #fdba74;
+  --status-warning-soft: #2b2114;
+  --status-success: #86efac;
+  --status-success-soft: #14271e;
+  --status-info: #93c5fd;
+  --status-info-soft: #16243b;
+}
+html body .lemma-app,
+html body .lemma-app.dark {
+  --graph-blue: #2f6fdd;
+  --graph-red: #e0523f;
+  --graph-green: #2f9e6b;
+  --graph-purple: #8b5cf6;
+  --graph-orange: #d9822b;
+  --graph-teal: #1597a8;
+}
+html body .lemma-app .grade-again {
+  --grade-color: var(--status-error);
+  --grade-bg: var(--status-error-soft);
+}
+html body .lemma-app .grade-hard {
+  --grade-color: var(--status-warning);
+  --grade-bg: var(--status-warning-soft);
+}
+html body .lemma-app .grade-good,
+html body .lemma-app .grade-easy {
+  --grade-color: var(--status-success);
+  --grade-bg: var(--status-success-soft);
+}
+html body .lemma-app .grade-row .grade {
+  color: var(--grade-color);
+  border-color: color-mix(in srgb, var(--grade-color) 32%, var(--line));
+  background: var(--grade-bg);
+}
+html body .lemma-app .grade-row .grade > span {
+  color: var(--grade-color);
+}
+html body .lemma-app .grade-row .grade:hover {
+  background: color-mix(in srgb, var(--grade-color) 16%, var(--paper));
+  border-color: var(--grade-color);
+}
+html body .lemma-app .grade-row .grade:focus-visible {
+  outline: 2px solid var(--grade-color);
+  outline-offset: 3px;
+}
+html body .lemma-app .grade-row .grade em {
+  color: var(--grade-color);
+  opacity: 1;
+}
+html body .lemma-app .console pre.is-error {
+  color: var(--status-error);
+  background: var(--status-error-soft);
+  border-left: 2px solid var(--status-error);
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-weight: 400;
+}
+html body .lemma-app .console pre.is-warning {
+  color: var(--status-warning);
+  background: var(--status-warning-soft);
+  border-left: 2px solid var(--status-warning);
+  padding: 8px 10px;
+  border-radius: 4px;
+}
+html body .lemma-app .workspace-storage-error {
+  color: var(--status-error);
+  background: var(--status-error-soft);
+  border-color: color-mix(in srgb, var(--status-error) 35%, var(--line));
+}
+html body .lemma-app .gc-row.has-error {
+  border-color: var(--status-error);
+}
+html body .lemma-app .gc-error,
+html body .lemma-app .latex-unmatched {
+  color: var(--status-error);
+}
+html body .lemma-app .save-status.saved .status-dot {
+  background: var(--status-success);
+}
+html body .lemma-app .save-status.saving .status-dot {
+  background: var(--status-info);
+}
+html body .lemma-app .save-status.offline .status-dot {
+  background: var(--status-warning);
+}
+.status-error {
+  --feedback-color: var(--status-error);
+  --feedback-bg: var(--status-error-soft);
+}
+.status-warning {
+  --feedback-color: var(--status-warning);
+  --feedback-bg: var(--status-warning-soft);
+}
+.status-success {
+  --feedback-color: var(--status-success);
+  --feedback-bg: var(--status-success-soft);
+}
+.status-info {
+  --feedback-color: var(--status-info);
+  --feedback-bg: var(--status-info-soft);
+}
+.run-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: 500 11px/1.4 var(--font-ui);
+  padding: 3px 7px;
+  border-radius: 5px;
+  color: var(--feedback-color);
+  background: var(--feedback-bg);
+  white-space: nowrap;
+}
+.execution-summary {
+  margin: 8px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  color: var(--feedback-color);
+  font-size: 12px;
+}
+.code-editing-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+  min-height: 36px;
+}
+.code-editing-tools button {
+  height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+  gap: 5px;
+}
+.code-editing-tools button:hover {
+  color: var(--ink-strong);
+}
+.code-language-label {
+  margin-left: auto;
+  padding-right: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.shortcut-list {
+  margin: 4px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.shortcut-list > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.shortcut-list dd {
+  margin: 0;
+  flex: none;
+}
+.shortcut-list kbd {
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font: 11px/1.4 var(--font-mono);
+  color: var(--foreground);
+}
+.shortcut-footnote {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  margin: 0;
+}
+.shortcut-dialog {
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+}
+@media (max-width: 760px) {
+  .shortcut-trigger span {
+    display: none;
+  }
+  .shortcut-trigger {
+    padding: 0 10px !important;
+  }
+  .code-editing-tools {
+    flex-wrap: wrap;
+  }
+  .code-language-label {
+    font-size: 10px;
+  }
+  .shortcut-list > div {
+    gap: 10px;
+    font-size: 12px;
+  }
+}
