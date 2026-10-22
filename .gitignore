@@ -39,3 +39,10 @@ supabase/.temp/
 *.njsproj
 *.sln
 *.sw?
+
+# Local browser verification artifacts and temporary preview harness
+/.playwright-cli/
+/output/playwright/
+/src/workspace-check.tsx
+/vite.workspace-check.config.ts
+/workspace-check.html

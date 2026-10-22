@@ -4,6 +4,9 @@ This folder explains significant changes in enough detail to understand, use and
 
 ## Entries
 
+- [2026-10-22 — Consolidate current work on master](2026-10-22-master-consolidation.md)
+
+- [2026-10-22 — Compact block actions and conversion flyouts](2026-10-22-block-action-flyouts.md)
 - [2026-10-22 — Editor interactions, typography and flexible reading](2026-10-22-editor-interactions-and-reading.md)
 - [2026-10-22 — Code themes, status colors, shortcuts and changelog policy](2026-10-22-code-themes-and-changelog.md)
 - [2026-10-22 — Lovable workspace and flashcard integration](2026-10-22-lovable-workspaces.md)

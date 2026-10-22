@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import { NodeSelection } from "@tiptap/pm/state";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import * as Menu from "@radix-ui/react-dropdown-menu";
 import {
   GripVertical,
   Plus,
@@ -12,6 +12,17 @@ import {
   Type,
   Palette,
   ChevronRight,
+  ArrowRightLeft,
+  ArrowLeft,
+  Heading1,
+  Heading2,
+  Heading3,
+  List,
+  ListOrdered,
+  ListTodo,
+  Code,
+  Quote,
+  Check,
 } from "lucide-react";
 export function moveBlock(editor: Editor, from: number, target: number) {
   const node = editor.state.doc.nodeAt(from);
@@ -27,8 +38,10 @@ export function BlockControls({ editor, onInsert }: { editor: Editor; onInsert: 
   const [block, setBlock] = useState<{ pos: number; top: number; left: number } | null>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [turnIntoOpen, setTurnIntoOpen] = useState(false);
-  const reduced = useReducedMotion();
+  const [activeSubmenu, setActiveSubmenu] = useState<"turn" | "color" | null>(null);
+  const controls = useRef<HTMLDivElement>(null);
+  const search = useRef<HTMLInputElement>(null);
+  const interactedOutside = useRef(false);
   const previousSelection = useRef<{ from: number; to: number } | null>(null);
   useEffect(() => {
     const update = (event?: MouseEvent) => {
@@ -58,31 +71,17 @@ export function BlockControls({ editor, onInsert }: { editor: Editor; onInsert: 
     const refresh = () => {
       if (!open) update();
     };
-    const outside = (event: MouseEvent) => {
-      if (event.target instanceof HTMLElement && !event.target.closest(".block-controls"))
-        setOpen(false);
-    };
-    window.addEventListener("mousedown", outside);
-    const close = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setOpen(false);
-        editor.commands.focus();
-      }
-    };
     editor.view.dom.addEventListener("mousemove", hover);
     editor.on("selectionUpdate", refresh);
     editor.on("update", refresh);
     window.addEventListener("scroll", refresh, true);
     window.addEventListener("resize", refresh);
-    window.addEventListener("keydown", close);
     return () => {
       editor.view.dom.removeEventListener("mousemove", hover);
       editor.off("selectionUpdate", refresh);
       editor.off("update", refresh);
       window.removeEventListener("scroll", refresh, true);
       window.removeEventListener("resize", refresh);
-      window.removeEventListener("keydown", close);
-      window.removeEventListener("mousedown", outside);
     };
   }, [editor, open]);
   if (!block || !editor.isEditable) return null;
@@ -102,6 +101,8 @@ export function BlockControls({ editor, onInsert }: { editor: Editor; onInsert: 
       if (kind === "Heading 2") chain.setHeading({ level: 2 }).run();
       if (kind === "Heading 3") chain.setHeading({ level: 3 }).run();
       if (kind === "Bullet list") chain.toggleBulletList().run();
+      if (kind === "Numbered list") chain.toggleOrderedList().run();
+      if (kind === "Code") chain.toggleCodeBlock().run();
       if (kind === "Task list") chain.toggleTaskList().run();
       if (kind === "Quote") chain.toggleBlockquote().run();
     }
@@ -126,8 +127,53 @@ export function BlockControls({ editor, onInsert }: { editor: Editor; onInsert: 
     }
     setOpen(false);
   };
+  const normalizedQuery = query.trim().toLowerCase();
+  const conversions = [
+    { label: "Text", icon: Type, active: node.type.name === "paragraph" },
+    {
+      label: "Heading 1",
+      icon: Heading1,
+      active: node.type.name === "heading" && node.attrs["level"] === 1,
+    },
+    {
+      label: "Heading 2",
+      icon: Heading2,
+      active: node.type.name === "heading" && node.attrs["level"] === 2,
+    },
+    {
+      label: "Heading 3",
+      icon: Heading3,
+      active: node.type.name === "heading" && node.attrs["level"] === 3,
+    },
+    { label: "Bullet list", icon: List, active: node.type.name === "bulletList" },
+    { label: "Numbered list", icon: ListOrdered, active: node.type.name === "orderedList" },
+    { label: "Task list", icon: ListTodo, active: node.type.name === "taskList" },
+    { label: "Code", icon: Code, active: node.type.name === "codeBlock" },
+    { label: "Quote", icon: Quote, active: node.type.name === "blockquote" },
+  ];
+  const blockLabel =
+    conversions.find(({ active }) => active)?.label || node.type.name.replace(/([A-Z])/g, " $1");
+  const actions = [
+    { label: "Copy text", icon: Copy },
+    { label: "Duplicate", icon: Copy },
+    { label: "Move up", icon: ArrowUp },
+    { label: "Move down", icon: ArrowDown },
+    { label: "Delete", icon: Trash2 },
+  ];
+  const changeOpen = (value: boolean) => {
+    if (value) {
+      interactedOutside.current = false;
+      const { from, to } = editor.state.selection;
+      previousSelection.current =
+        from > block.pos && to < block.pos + node.nodeSize ? { from, to } : null;
+      editor.commands.setNodeSelection(block.pos);
+      setQuery("");
+    }
+    if (!value) setActiveSubmenu(null);
+    setOpen(value);
+  };
   return (
-    <div className="block-controls" style={{ top: block.top, left: block.left }}>
+    <div ref={controls} className="block-controls" style={{ top: block.top, left: block.left }}>
       <button
         title="Insert below"
         aria-label="Insert block below"
@@ -143,215 +189,233 @@ export function BlockControls({ editor, onInsert }: { editor: Editor; onInsert: 
       >
         <Plus size={16} />
       </button>
-      <button
-        draggable
-        title="Drag to move · click for actions"
-        aria-label="Block actions"
-        aria-expanded={open}
-        onClick={() => {
-          const { from, to } = editor.state.selection;
-          previousSelection.current =
-            from > block.pos && to < block.pos + node.nodeSize ? { from, to } : null;
-          editor.commands.setNodeSelection(block.pos);
-          setQuery("");
-          setTurnIntoOpen(false);
-          setOpen((v) => !v);
-        }}
-        onDragStart={(e) => {
-          editor.commands.setNodeSelection(block.pos);
-          e.dataTransfer.setData("text/plain", node.textContent || node.type.name);
-          e.dataTransfer.effectAllowed = "move";
-          const origin = block.pos;
-          const drop = (event: DragEvent) => {
-            event.preventDefault();
-            event.stopPropagation();
-            const found = editor.view.posAtCoords({ left: event.clientX, top: event.clientY });
-            if (found) {
-              const resolved = editor.state.doc.resolve(found.pos);
-              const start = resolved.depth ? resolved.before(1) : found.pos;
-              const el = editor.view.nodeDOM(start);
-              const rect = el instanceof HTMLElement ? el.getBoundingClientRect() : null;
-              const target =
-                rect && event.clientY > rect.top + rect.height / 2
-                  ? start + (editor.state.doc.nodeAt(start)?.nodeSize || 0)
-                  : start;
-              moveBlock(editor, origin, target);
-            }
-            cleanup();
-          };
-          const over = (event: DragEvent) => event.preventDefault();
-          const cleanup = () => {
-            editor.view.dom.removeEventListener("drop", drop, true);
-            editor.view.dom.removeEventListener("dragover", over);
-            window.removeEventListener("dragend", cleanup);
-          };
-          editor.view.dom.addEventListener("drop", drop, true);
-          editor.view.dom.addEventListener("dragover", over);
-          window.addEventListener("dragend", cleanup, { once: true });
-        }}
-      >
-        <GripVertical size={16} />
-      </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            className="block-actions"
-            role="menu"
-            aria-label="Block actions"
-            initial={{ opacity: 0, y: reduced ? 0 : 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: reduced ? 0 : 0.14 }}
-            style={{
-              maxHeight: Math.max(
-                120,
-                Math.min(
-                  560,
-                  window.innerHeight - block.top > 300
-                    ? window.innerHeight - block.top - 48
-                    : block.top - 24,
-                ),
-              ),
-              overflowY: "auto",
-              ...(window.innerHeight - block.top > 300 ? { top: 32 } : { top: "auto", bottom: 4 }),
+      <Menu.Root modal={false} open={open} onOpenChange={changeOpen}>
+        <Menu.Trigger asChild>
+          <button
+            draggable
+            onPointerDownCapture={(event) => {
+              // Keep native drag initiation; Radix normally prevents pointer-down on its trigger.
+              event.stopPropagation();
             }}
-            onKeyDown={(event) => {
-              if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+            onClick={() => changeOpen(!open)}
+            title="Drag to move · click for actions"
+            aria-label="Block actions"
+            onDragStart={(e) => {
+              editor.commands.setNodeSelection(block.pos);
+              e.dataTransfer.setData("text/plain", node.textContent || node.type.name);
+              e.dataTransfer.effectAllowed = "move";
+              const origin = block.pos;
+              const drop = (event: DragEvent) => {
+                event.preventDefault();
+                event.stopPropagation();
+                const found = editor.view.posAtCoords({ left: event.clientX, top: event.clientY });
+                if (found) {
+                  const resolved = editor.state.doc.resolve(found.pos);
+                  const start = resolved.depth ? resolved.before(1) : found.pos;
+                  const el = editor.view.nodeDOM(start);
+                  const rect = el instanceof HTMLElement ? el.getBoundingClientRect() : null;
+                  const target =
+                    rect && event.clientY > rect.top + rect.height / 2
+                      ? start + (editor.state.doc.nodeAt(start)?.nodeSize || 0)
+                      : start;
+                  moveBlock(editor, origin, target);
+                }
+                cleanup();
+              };
+              const over = (event: DragEvent) => event.preventDefault();
+              const cleanup = () => {
+                editor.view.dom.removeEventListener("drop", drop, true);
+                editor.view.dom.removeEventListener("dragover", over);
+                window.removeEventListener("dragend", cleanup);
+              };
+              editor.view.dom.addEventListener("drop", drop, true);
+              editor.view.dom.addEventListener("dragover", over);
+              window.addEventListener("dragend", cleanup, { once: true });
+            }}
+          >
+            <GripVertical size={16} />
+          </button>
+        </Menu.Trigger>
+        <Menu.Portal container={controls.current}>
+          <Menu.Content
+            className="block-actions"
+            aria-label="Block actions"
+            align="start"
+            sideOffset={6}
+            collisionPadding={12}
+            onFocus={(event) => {
+              if (event.target === event.currentTarget) search.current?.focus();
+            }}
+            onInteractOutside={() => {
+              interactedOutside.current = true;
+            }}
+            onCloseAutoFocus={(event) => {
               event.preventDefault();
-              const items = Array.from(
-                event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"),
-              );
-              const current = items.indexOf(document.activeElement as HTMLButtonElement);
-              items[
-                (current + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length
-              ]?.focus();
+              if (!interactedOutside.current)
+                editor.commands.focus(undefined, { scrollIntoView: false });
             }}
           >
             <input
-              autoFocus
+              ref={search}
               aria-label="Search block actions"
               placeholder="Search actions…"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                  event.preventDefault();
+                  const items = event.currentTarget.parentElement?.querySelectorAll<HTMLElement>(
+                    '[role="menuitem"]:not([data-disabled])',
+                  );
+                  (event.key === "ArrowDown" ? items?.[0] : items?.[items.length - 1])?.focus();
+                }
+                if (event.key !== "Escape" && event.key !== "Tab") event.stopPropagation();
+              }}
             />
-            <span className="block-menu-caption">
-              {node.type.name.replace(/([A-Z])/g, " $1")} ·{" "}
-              {node.textContent.split(/\s+/).filter(Boolean).length} words
-            </span>
-            {node.isTextblock && (!query || "turn into".includes(query.toLowerCase())) && (
-              <>
-                <button
-                  role="menuitem"
-                  aria-expanded={turnIntoOpen}
-                  aria-controls="block-turn-into"
-                  onClick={() => setTurnIntoOpen((value) => !value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "ArrowRight") {
-                      event.preventDefault();
-                      setTurnIntoOpen(true);
-                    }
-                  }}
-                >
-                  <Type size={15} />
-                  <span>Turn into…</span>
-                  <ChevronRight size={14} className={turnIntoOpen ? "is-expanded" : ""} />
-                </button>
-                <AnimatePresence initial={false}>
-                  {turnIntoOpen && (
-                    <motion.div
-                      id="block-turn-into"
-                      className="block-turn-into"
-                      role="menu"
-                      aria-label="Turn into"
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: reduced ? 0 : 0.16 }}
-                      onKeyDown={(event) => {
-                        if (event.key === "ArrowLeft") {
-                          event.preventDefault();
-                          setTurnIntoOpen(false);
-                          document
-                            .querySelector<HTMLButtonElement>('[aria-controls="block-turn-into"]')
-                            ?.focus();
-                        }
+            <Menu.Label className="block-menu-caption">{blockLabel}</Menu.Label>
+            {node.isTextblock && (!query || "turn into".includes(normalizedQuery)) && (
+              <Menu.Sub
+                open={activeSubmenu === "turn"}
+                onOpenChange={(value) => setActiveSubmenu(value ? "turn" : null)}
+              >
+                <Menu.SubTrigger className="block-action-item">
+                  <ArrowRightLeft size={17} />
+                  <span>Turn into</span>
+                  <ChevronRight size={15} />
+                </Menu.SubTrigger>
+                <Menu.Portal container={controls.current}>
+                  <Menu.SubContent
+                    className="block-actions block-actions-submenu"
+                    sideOffset={4}
+                    collisionPadding={12}
+                    aria-label="Turn into"
+                  >
+                    <Menu.Item
+                      className="block-action-item block-submenu-back"
+                      onSelect={(event) => {
+                        event.preventDefault();
+                        setActiveSubmenu(null);
                       }}
                     >
-                      {[
-                        "Text",
-                        "Heading 1",
-                        "Heading 2",
-                        "Heading 3",
-                        "Bullet list",
-                        "Task list",
-                        "Quote",
-                      ].map((kind) => (
-                        <button role="menuitem" key={kind} onClick={() => run(`Turn into ${kind}`)}>
-                          <span>{kind}</span>
-                        </button>
-                      ))}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </>
+                      <ArrowLeft size={17} />
+                      <span>Turn into</span>
+                    </Menu.Item>
+                    {conversions.map(({ label, icon: Icon, active }) => (
+                      <Menu.Item
+                        key={label}
+                        className="block-action-item"
+                        onSelect={() => run(`Turn into ${label}`)}
+                      >
+                        <Icon size={18} />
+                        <span>{label}</span>
+                        {active && <Check size={16} aria-label="Current block type" />}
+                      </Menu.Item>
+                    ))}
+                  </Menu.SubContent>
+                </Menu.Portal>
+              </Menu.Sub>
             )}
-            {["Copy text", "Move up", "Move down", "Duplicate", "Delete"]
-              .filter((action) => action.toLowerCase().includes(query.toLowerCase()))
-              .map((action) => (
-                <button
-                  role="menuitem"
-                  key={action}
-                  className={action === "Delete" ? "is-destructive" : ""}
+            {node.isTextblock &&
+              query &&
+              conversions
+                .filter(({ label }) => label.toLowerCase().includes(normalizedQuery))
+                .map(({ label, icon: Icon }) => (
+                  <Menu.Item
+                    key={label}
+                    className="block-action-item"
+                    onSelect={() => run(`Turn into ${label}`)}
+                  >
+                    <Icon size={18} />
+                    <span>Turn into {label}</span>
+                  </Menu.Item>
+                ))}
+            {(!query || "color".includes(normalizedQuery)) && (
+              <Menu.Sub
+                open={activeSubmenu === "color"}
+                onOpenChange={(value) => setActiveSubmenu(value ? "color" : null)}
+              >
+                <Menu.SubTrigger className="block-action-item">
+                  <Palette size={17} />
+                  <span>Color</span>
+                  <ChevronRight size={15} />
+                </Menu.SubTrigger>
+                <Menu.Portal container={controls.current}>
+                  <Menu.SubContent
+                    className="block-actions block-actions-submenu"
+                    sideOffset={4}
+                    collisionPadding={12}
+                    aria-label="Text color"
+                  >
+                    <Menu.Item
+                      className="block-action-item block-submenu-back"
+                      onSelect={(event) => {
+                        event.preventDefault();
+                        setActiveSubmenu(null);
+                      }}
+                    >
+                      <ArrowLeft size={17} />
+                      <span>Back</span>
+                    </Menu.Item>
+                    <Menu.Label className="block-menu-caption">Text color</Menu.Label>
+                    {[
+                      ["Default", "var(--ink)"],
+                      ["Red", "#c24141"],
+                      ["Orange", "#b45309"],
+                      ["Green", "#16803e"],
+                      ["Blue", "#2563eb"],
+                    ].map(([label, color]) => (
+                      <Menu.Item
+                        key={label}
+                        className="block-action-item"
+                        onSelect={() => run(`Color ${color}`)}
+                      >
+                        <Type size={18} style={{ color }} />
+                        <span>{label}</span>
+                      </Menu.Item>
+                    ))}
+                  </Menu.SubContent>
+                </Menu.Portal>
+              </Menu.Sub>
+            )}
+            {!query && <Menu.Separator className="block-action-separator" />}
+            {actions
+              .filter(({ label }) => label.toLowerCase().includes(normalizedQuery))
+              .map(({ label, icon: Icon }) => (
+                <Menu.Item
+                  key={label}
+                  className={`block-action-item${label === "Delete" ? " is-destructive" : ""}`}
                   disabled={
-                    (action === "Move up" && block.pos === 0) ||
-                    (action === "Move down" && !editor.state.doc.nodeAt(block.pos + node.nodeSize))
+                    (label === "Move up" && block.pos === 0) ||
+                    (label === "Move down" && !editor.state.doc.nodeAt(block.pos + node.nodeSize))
                   }
-                  onClick={() => run(action)}
+                  onSelect={() => run(label)}
                 >
-                  {action.startsWith("Turn into") ? (
-                    <Type size={15} />
-                  ) : action === "Delete" ? (
-                    <Trash2 size={15} />
-                  ) : action === "Move up" ? (
-                    <ArrowUp size={15} />
-                  ) : action === "Move down" ? (
-                    <ArrowDown size={15} />
-                  ) : (
-                    <Copy size={15} />
-                  )}
-                  <span>{action}</span>
-                </button>
+                  <Icon size={17} />
+                  <span>{label}</span>
+                </Menu.Item>
               ))}
+            {query &&
+              !actions.some(({ label }) => label.toLowerCase().includes(normalizedQuery)) &&
+              !(
+                node.isTextblock &&
+                ("turn into".includes(normalizedQuery) ||
+                  conversions.some(({ label }) => label.toLowerCase().includes(normalizedQuery)))
+              ) &&
+              !"color".includes(normalizedQuery) && (
+                <div className="block-menu-caption">No actions found</div>
+              )}
             {!query && (
               <>
-                <span className="block-menu-caption">
-                  <Palette size={13} />
-                  Text color
-                </span>
-                <div className="block-color-actions">
-                  {[
-                    ["Default", "var(--ink)"],
-                    ["Red", "#c24141"],
-                    ["Orange", "#b45309"],
-                    ["Green", "#16803e"],
-                    ["Blue", "#2563eb"],
-                  ].map(([label, color]) => (
-                    <button
-                      key={label}
-                      title={label}
-                      aria-label={`Text color ${label}`}
-                      style={{ color }}
-                      onClick={() => run(`Color ${color}`)}
-                    >
-                      A
-                    </button>
-                  ))}
+                <Menu.Separator className="block-action-separator" />
+                <div className="block-menu-caption block-menu-stats">
+                  {node.textContent.split(/\s+/).filter(Boolean).length} words ·{" "}
+                  {node.textContent.length} characters
                 </div>
               </>
             )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </Menu.Content>
+        </Menu.Portal>
+      </Menu.Root>
     </div>
   );
 }
