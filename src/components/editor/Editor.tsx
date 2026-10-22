@@ -1,4 +1,9 @@
 // @ts-nocheck -- ported from the original Lemma codebase, which used looser type settings
+import { lazy, Suspense } from "react";
+const CodeLab = lazy(() => import("@/components/spaces/CodeLab"));
+const Flashcards = lazy(() => import("@/components/spaces/Flashcards"));
+import { SpaceSwitcher, type Space } from "@/components/spaces/SpaceSwitcher";
+import HomeDashboard from "./Home";
 import { Columns, Column, columnContent } from "./columns";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 const stableRouter = {
@@ -275,6 +280,50 @@ export default function Editor() {
     [fontSize, setFontSize] = useState(16),
     [demoMode, setDemoMode] = useState(false),
     [outline, setOutline] = useState(true);
+  const [space, setSpace] = useState<Space>(() => {
+    if (typeof location === "undefined") return "notes";
+    const params = new URLSearchParams(location.search);
+    if (params.has("share")) return "notes";
+    const value = params.get("space");
+    return value === "code" || value === "cards" ? value : "notes";
+  });
+  const [home, setHome] = useState(true);
+  const changeSpace = useCallback((next: Space) => {
+    setSpace(next);
+    setFocus(false);
+    setMenu(false);
+    setSearchOpen(false);
+    const url = new URL(location.href);
+    if (next === "notes") url.searchParams.delete("space");
+    else url.searchParams.set("space", next);
+    window.history.pushState(null, "", url.pathname + url.search);
+  }, []);
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", dark);
+  }, [dark]);
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => {
+      if (sharedView || !event.altKey || event.metaKey || event.ctrlKey) return;
+      const next = { Digit1: "notes", Digit2: "code", Digit3: "cards" }[event.code] as
+        Space | undefined;
+      if (next) {
+        event.preventDefault();
+        changeSpace(next);
+      }
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [changeSpace, sharedView]);
+  const sidebarDismiss = sidebar ? (
+    <Button
+      variant="ghost"
+      className="sidebar-dismiss"
+      aria-label="Close sidebar"
+      onClick={() => setSidebar(false)}
+    />
+  ) : null;
+  const switcher =
+    !sharedView && !focus ? <SpaceSwitcher value={space} onChange={changeSpace} /> : null;
   const [preferences, setPreferences] = useState<Preferences>(defaultPreferences);
   const changePreferences = (next: Preferences) => {
     setPreferences(next);
@@ -647,6 +696,7 @@ export default function Editor() {
   ]);
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
+      setSidebar(!window.matchMedia("(max-width: 700px)").matches);
       const storedTheme = localStorage.getItem("lemma:theme");
       const initialTheme =
         storedTheme === "light" || storedTheme === "dark" || storedTheme === "system"
@@ -724,6 +774,7 @@ export default function Editor() {
   }, [searchOpen]);
   useEffect(() => {
     const onGlobalKey = (e: KeyboardEvent) => {
+      if (space !== "notes") return;
       if (!sharedView && (e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "p") {
         e.preventDefault();
         setSearchOpen(true);
@@ -738,7 +789,7 @@ export default function Editor() {
     };
     window.addEventListener("keydown", onGlobalKey);
     return () => window.removeEventListener("keydown", onGlobalKey);
-  }, [focus, sharedView]);
+  }, [focus, sharedView, space]);
   useEffect(() => {
     if (!editor) return;
     let previous = "";
@@ -809,6 +860,12 @@ export default function Editor() {
   useEffect(() => {
     const onPop = () => {
       const params = new URLSearchParams(location.search);
+      const nextSpace = params.get("space");
+      setSpace(
+        !params.has("share") && (nextSpace === "code" || nextSpace === "cards")
+          ? nextSpace
+          : "notes",
+      );
       if (params.has("share")) {
         void refresh();
         return;
@@ -852,6 +909,13 @@ export default function Editor() {
   useEffect(() => {
     if (!editor) return;
     const onKey = (e: KeyboardEvent) => {
+      if (
+        space !== "notes" ||
+        library ||
+        !(e.target instanceof HTMLElement) ||
+        !e.target.closest(".ProseMirror,.slash-menu,.block-menu")
+      )
+        return;
       if (snipFields.length && e.key === "Tab") {
         e.preventDefault();
         const next = fieldIndex + 1;
@@ -929,6 +993,8 @@ export default function Editor() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [
+    space,
+    library,
     preferences.slashCommands,
     editor,
     snipQuery,
@@ -1106,12 +1172,15 @@ export default function Editor() {
     runCommandRef.current = runCommand;
   }, [insertSnippet, runCommand]);
   const showLibrary = (folderId: string | null = null, favorites = false) => {
+    setHome(false);
     setCurrentFolder(folderId);
     setFavoritesOnly(favorites);
     setLibrary(true);
     router.push("/", { scroll: false });
   };
   const activate = (note: Note, pageId?: string) => {
+    if (window.matchMedia("(max-width: 700px)").matches) setSidebar(false);
+    setSpace("notes");
     activeRef.current = note;
     localStorage.setItem("lemma:last-note", note.id);
     const pages = pagesFor(note);
@@ -1125,6 +1194,7 @@ export default function Editor() {
     if (historyOpen) setHistoryOpen(false);
     setHistory([]);
     const u = new URL(location.href);
+    u.searchParams.delete("space");
     u.searchParams.set("note", note.id);
     u.searchParams.set("page", page.id);
     u.searchParams.delete("mode");
@@ -1682,16 +1752,53 @@ export default function Editor() {
       </main>
     );
   if (supabase && !user && !sharedView) return <AuthScreen />;
+  if (space !== "notes" && !sharedView)
+    return (
+      <main className={`lemma-app space-app ${dark ? "dark" : ""}`}>
+        {switcher}
+        <div className="space-account-tools">
+          <Button variant="ghost" aria-label="Toggle appearance" onClick={toggleTheme}>
+            <Contrast size={16} />
+          </Button>
+          <Button variant="ghost" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
+            <Settings2 size={16} />
+          </Button>
+        </div>
+        <Suspense
+          fallback={
+            <p className="space-loading" role="status">
+              Loading workspace…
+            </p>
+          }
+        >
+          {space === "code" ? (
+            <CodeLab key={user?.id || "local"} ownerId={user?.id} dark={dark} />
+          ) : (
+            <Flashcards key={user?.id || "local"} ownerId={user?.id} />
+          )}
+        </Suspense>
+        {settingsDialog}
+      </main>
+    );
   if (library)
     return (
       <main
         className={`lemma-app library-app ${dark ? "dark" : ""} page-direction-${preferences.pageDirection} density-${preferences.density} ${preferences.showIcons ? "" : "hide-note-icons"}`}
         style={{ "--sidebar-width": `${preferences.sidebarWidth}px` } as React.CSSProperties}
       >
+        {switcher}
+        {sidebarDismiss}
         {sidebar && (
           <aside className="sidebar">
             <div className="brand">
-              <Button variant="ghost" className="brand-button" onClick={() => setLibrary(true)}>
+              <Button
+                variant="ghost"
+                className="brand-button"
+                onClick={() => {
+                  showLibrary();
+                  setHome(true);
+                }}
+              >
                 <span className="brand-mark">λ</span>
                 <span>lemma</span>
               </Button>
@@ -1710,8 +1817,9 @@ export default function Editor() {
             </Button>
             <Button
               variant="ghost"
-              className={`side-link ${!favoritesOnly && !currentFolder ? "selected" : ""}`}
+              className={`side-link ${!home && !favoritesOnly && !currentFolder ? "selected" : ""}`}
               onClick={() => {
+                setHome(false);
                 setCurrentFolder(null);
                 setFavoritesOnly(false);
               }}
@@ -1784,144 +1892,186 @@ export default function Editor() {
           </aside>
         )}
         <section className="library-workspace">
-          <header className="library-header">
-            <div className="library-heading">
+          {home && !currentFolder && !favoritesOnly && !search && !tagFilter ? (
+            <>
               {!sidebar && (
                 <Button
                   variant="ghost"
-                  className="icon-button library-sidebar-open"
+                  className="home-sidebar-open icon-button"
                   aria-label="Open sidebar"
                   onClick={() => setSidebar(true)}
                 >
                   <PanelLeftOpen size={16} />
                 </Button>
               )}
-              {currentFolder && (
-                <Button
-                  variant="ghost"
-                  className="library-back"
-                  onClick={() =>
-                    setCurrentFolder(folders.find((f) => f.id === currentFolder)?.parent_id || null)
-                  }
-                >
-                  ← {folderName(folders.find((f) => f.id === currentFolder)?.parent_id || null)}
-                </Button>
-              )}
-              <span className="panel-eyebrow">YOUR WORKSPACE</span>
-              <h1>
-                {favoritesOnly
-                  ? "Favorites"
-                  : currentFolder
-                    ? folderName(currentFolder)
-                    : "All notes"}
-              </h1>
-              {currentFolder && (
-                <p>
-                  {folderNoteCount} {folderNoteCount === 1 ? "note" : "notes"}
-                  {childFolderCount > 0 &&
-                    ` · ${childFolderCount} ${childFolderCount === 1 ? "folder" : "folders"}`}
-                </p>
-              )}
-            </div>
-            <div className="library-actions">
-              <Button variant="ghost" onClick={importDocument}>
-                <Plus size={16} /> Import document
-              </Button>
-              <Button
-                variant="ghost"
-                className="icon-button"
-                title="Search notes · ⇧⌘ P"
-                onClick={() => setSearchOpen(true)}
-              >
-                <Search size={16} />
-              </Button>
-              <Button
-                variant="ghost"
-                className="action-button"
-                onClick={() => void createFolder(currentFolder)}
-              >
-                <FolderPlus size={15} />
-                <span>New folder</span>
-              </Button>
-              <Button variant="ghost" className="new-note" onClick={() => create(currentFolder)}>
-                <Plus size={15} />
-                New note
-              </Button>
-              {currentFolder && (
-                <Button
-                  variant="ghost"
-                  className="icon-button library-delete"
-                  aria-label="Delete folder"
-                  title="Delete folder"
-                  onClick={() => {
-                    const folder = folders.find((item) => item.id === currentFolder);
-                    if (folder) void removeFolder(folder);
-                  }}
-                >
-                  <Trash2 size={16} />
-                </Button>
-              )}
-            </div>
-          </header>
-          <div className="library-content">
-            {!search && !favoritesOnly && childFolderCount > 0 && (
-              <section className="library-folder-list" aria-label="Folders">
-                {folders
-                  .filter((f) => f.parent_id === currentFolder)
-                  .map((f) =>
-                    wrapFolder(
-                      f,
-                      <Button
-                        variant="ghost"
-                        className="library-folder"
-                        key={f.id}
-                        onClick={() => showLibrary(f.id)}
-                      >
-                        <FolderIcon size={20} />
-                        <span>
-                          <strong>{f.name}</strong>
-                          <small>{notes.filter((n) => n.folder_id === f.id).length} notes</small>
-                        </span>
-                        <ChevronRight size={16} />
-                      </Button>,
-                    ),
+              <HomeDashboard
+                name={
+                  user?.user_metadata?.full_name?.split(" ")[0] ||
+                  user?.email?.split("@")[0] ||
+                  "there"
+                }
+                notes={notes}
+                folders={folders}
+                onOpen={activate}
+                onNewNote={() => create(null)}
+                onNewFolder={() => void createFolder(null)}
+                onSearch={() => setSearchOpen(true)}
+                onFavorites={() => showLibrary(null, true)}
+                onFolder={showLibrary}
+              />
+            </>
+          ) : (
+            <>
+              <header className="library-header">
+                <div className="library-heading">
+                  {!sidebar && (
+                    <Button
+                      variant="ghost"
+                      className="icon-button library-sidebar-open"
+                      aria-label="Open sidebar"
+                      onClick={() => setSidebar(true)}
+                    >
+                      <PanelLeftOpen size={16} />
+                    </Button>
                   )}
-              </section>
-            )}
-            <h2>
-              {search
-                ? `Search results · ${searchResults.length}`
-                : favoritesOnly
-                  ? "Favorite notes"
-                  : currentFolder
-                    ? "Notes in this folder"
-                    : "Recently updated"}
-            </h2>
-            <div className="library-notes">
-              {(search
-                ? searchResults
-                : notes.filter(
-                    (note) =>
-                      (!favoritesOnly || note.is_favorite) &&
-                      (favoritesOnly || note.folder_id === currentFolder) &&
-                      (!tagFilter || ((note as any).tags || []).includes(tagFilter)),
+                  {currentFolder && (
+                    <Button
+                      variant="ghost"
+                      className="library-back"
+                      onClick={() =>
+                        setCurrentFolder(
+                          folders.find((f) => f.id === currentFolder)?.parent_id || null,
+                        )
+                      }
+                    >
+                      ← {folderName(folders.find((f) => f.id === currentFolder)?.parent_id || null)}
+                    </Button>
+                  )}
+                  <span className="panel-eyebrow">YOUR WORKSPACE</span>
+                  <h1>
+                    {favoritesOnly
+                      ? "Favorites"
+                      : currentFolder
+                        ? folderName(currentFolder)
+                        : "All notes"}
+                  </h1>
+                  {currentFolder && (
+                    <p>
+                      {folderNoteCount} {folderNoteCount === 1 ? "note" : "notes"}
+                      {childFolderCount > 0 &&
+                        ` · ${childFolderCount} ${childFolderCount === 1 ? "folder" : "folders"}`}
+                    </p>
+                  )}
+                </div>
+                <div className="library-actions">
+                  <Button variant="ghost" onClick={importDocument}>
+                    <Plus size={16} /> Import document
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="icon-button"
+                    title="Search notes · ⇧⌘ P"
+                    onClick={() => setSearchOpen(true)}
+                  >
+                    <Search size={16} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="action-button"
+                    onClick={() => void createFolder(currentFolder)}
+                  >
+                    <FolderPlus size={15} />
+                    <span>New folder</span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="new-note"
+                    onClick={() => create(currentFolder)}
+                  >
+                    <Plus size={15} />
+                    New note
+                  </Button>
+                  {currentFolder && (
+                    <Button
+                      variant="ghost"
+                      className="icon-button library-delete"
+                      aria-label="Delete folder"
+                      title="Delete folder"
+                      onClick={() => {
+                        const folder = folders.find((item) => item.id === currentFolder);
+                        if (folder) void removeFolder(folder);
+                      }}
+                    >
+                      <Trash2 size={16} />
+                    </Button>
+                  )}
+                </div>
+              </header>
+              <div className="library-content">
+                {!search && !favoritesOnly && childFolderCount > 0 && (
+                  <section className="library-folder-list" aria-label="Folders">
+                    {folders
+                      .filter((f) => f.parent_id === currentFolder)
+                      .map((f) =>
+                        wrapFolder(
+                          f,
+                          <Button
+                            variant="ghost"
+                            className="library-folder"
+                            key={f.id}
+                            onClick={() => showLibrary(f.id)}
+                          >
+                            <FolderIcon size={20} />
+                            <span>
+                              <strong>{f.name}</strong>
+                              <small>
+                                {notes.filter((n) => n.folder_id === f.id).length} notes
+                              </small>
+                            </span>
+                            <ChevronRight size={16} />
+                          </Button>,
+                        ),
+                      )}
+                  </section>
+                )}
+                <h2>
+                  {search
+                    ? `Search results · ${searchResults.length}`
+                    : favoritesOnly
+                      ? "Favorite notes"
+                      : currentFolder
+                        ? "Notes in this folder"
+                        : "Recently updated"}
+                </h2>
+                <div className="library-notes">
+                  {(search
+                    ? searchResults
+                    : notes.filter(
+                        (note) =>
+                          (!favoritesOnly || note.is_favorite) &&
+                          (favoritesOnly || note.folder_id === currentFolder) &&
+                          (!tagFilter || ((note as any).tags || []).includes(tagFilter)),
+                      )
                   )
-              )
-                .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
-                .map(renderLibraryNote)}
-            </div>
-            {!notes.length && (
-              <p className="library-empty">Create a class or a note to start your workspace.</p>
-            )}
-            {currentFolder && notes.length > 0 && !search && folderNoteCount === 0 && (
-              <p className="library-empty">No notes here yet. Create a new note to get started.</p>
-            )}
-            {notes.length > 0 && search && !searchResults.length && (
-              <p className="library-empty">
-                No notes match “{search}”. Try another title or phrase.
-              </p>
-            )}
-          </div>
+                    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+                    .map(renderLibraryNote)}
+                </div>
+                {!notes.length && (
+                  <p className="library-empty">Create a class or a note to start your workspace.</p>
+                )}
+                {currentFolder && notes.length > 0 && !search && folderNoteCount === 0 && (
+                  <p className="library-empty">
+                    No notes here yet. Create a new note to get started.
+                  </p>
+                )}
+                {notes.length > 0 && search && !searchResults.length && (
+                  <p className="library-empty">
+                    No notes match “{search}”. Try another title or phrase.
+                  </p>
+                )}
+              </div>
+            </>
+          )}
         </section>
         {searchOpen && (
           <div className="search-scrim" onClick={() => setSearchOpen(false)}>
@@ -2064,13 +2214,15 @@ export default function Editor() {
           "--doc-font-size": `${fontSize}px`,
           "--doc-font-family":
             fontFamily === "serif"
-              ? "KaTeX_Main, Georgia, serif"
+              ? '"STIX Two Text", KaTeX_Main, Georgia, serif'
               : fontFamily === "mono"
                 ? "ui-monospace, SFMono-Regular, Menlo, monospace"
-                : "Arial, Helvetica, sans-serif",
+                : '"Nunito Sans", Inter, system-ui, sans-serif',
         } as React.CSSProperties
       }
     >
+      {switcher}
+      {!preview && !focus && sidebarDismiss}
       {sidebar && !preview && !focus && (
         <aside className="sidebar">
           <div className="brand">

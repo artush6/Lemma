@@ -5,10 +5,18 @@ import Editor from "@/components/editor/Editor";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Lemma — mathematical notes" },
-      { name: "description", content: "A calm writing space for mathematical thinking." },
-      { property: "og:title", content: "Lemma — mathematical notes" },
-      { property: "og:description", content: "A calm writing space for mathematical thinking." },
+      { title: "Lemma — notes, code & flashcards" },
+      {
+        name: "description",
+        content:
+          "A calm workspace for mathematical notes, code experiments and spaced-repetition flashcards.",
+      },
+      { property: "og:title", content: "Lemma — notes, code & flashcards" },
+      {
+        property: "og:description",
+        content:
+          "A calm workspace for mathematical notes, code experiments and spaced-repetition flashcards.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
