@@ -4,6 +4,12 @@ This folder explains significant changes in enough detail to understand, use and
 
 ## Entries
 
+- [2026-10-23 — Unified tabs, pane menus and drag-to-split workspace](2026-10-23-unified-workspace.md)
+
+- [2026-10-23 — Dashboard spacing and grouped surfaces](2026-10-23-dashboard-spacing.md)
+
+- [2026-10-23 — Larger document reading pane](2026-10-23-larger-document-preview.md)
+
 - [2026-10-22 — Consolidate current work on master](2026-10-22-master-consolidation.md)
 
 - [2026-10-22 — Compact block actions and conversion flyouts](2026-10-22-block-action-flyouts.md)

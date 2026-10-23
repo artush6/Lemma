@@ -52,7 +52,13 @@ const grades: { g: Grade; label: string; key: string }[] = [
   { g: "easy", label: "Easy", key: "4" },
 ];
 
-export default function Flashcards({ ownerId }: { ownerId?: string }) {
+export default function Flashcards({
+  ownerId,
+  active = true,
+}: {
+  ownerId?: string;
+  active?: boolean;
+}) {
   const reducedMotion = useReducedMotion();
   const { ask, confirm, dialogs } = useWorkspaceDialogs();
   const [decks, setDecks, deckError] = useStored<Deck[]>(ownerId, "cards:decks", () => [
@@ -97,6 +103,7 @@ export default function Flashcards({ ownerId }: { ownerId?: string }) {
   useEffect(() => {
     if (!studying) return;
     const k = (e: KeyboardEvent) => {
+      if (!active) return;
       if (
         e.altKey ||
         e.metaKey ||

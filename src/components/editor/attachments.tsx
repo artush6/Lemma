@@ -41,7 +41,13 @@ export async function readAttachment(file: File): Promise<JSONContent> {
   });
   return { type: "attachment", attrs: { name: file.name, src, mime } };
 }
-export function AttachmentPreview({ attachment }: { attachment: Attachment }) {
+export function AttachmentPreview({
+  attachment,
+  showDownload = true,
+}: {
+  attachment: Attachment;
+  showDownload?: boolean;
+}) {
   const [url, setUrl] = useState("");
   useEffect(() => {
     if (!validAttachment(attachment)) return;
@@ -68,9 +74,11 @@ export function AttachmentPreview({ attachment }: { attachment: Attachment }) {
       ) : (
         <p>Download this document to open it in its application.</p>
       )}
-      <a href={url} download={attachment.name}>
-        <Download size={14} /> Download {attachment.name}
-      </a>
+      {showDownload && (
+        <a href={url} download={attachment.name}>
+          <Download size={14} /> Download {attachment.name}
+        </a>
+      )}
     </div>
   );
 }

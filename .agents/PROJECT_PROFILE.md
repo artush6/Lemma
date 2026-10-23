@@ -8,7 +8,7 @@ Lemma is a mathematical note workspace: “A calm writing space for mathematical
 
 ## Architecture and routes
 
-- TanStack Start/React/Vite application ported from Next.js. `src/routes/index.tsx` renders Editor inside ClientOnly at `/`; browser-sensitive TipTap/graph imports must remain compatible with this setup.
+- TanStack Start/React/Vite application ported from Next.js. `src/routes/index.tsx` renders Workspace inside ClientOnly at `/`; browser-sensitive TipTap/graph imports must remain compatible with this setup.
 - `src/routes/__root.tsx`: document shell, metadata/Google Fonts, Outlet, QueryClient provider, not-found/error UI. `src/router.tsx`: per-router QueryClient. Generated `src/routeTree.gen.ts` is not hand-edited.
 - One registered page route, `/`. Workspace states use `?note=`, legacy `?page=`, `?mode=read`, and `?share=` with manual history.pushState/popstate in Editor. These are compatibility parameters, not separate routes.
 - `src/components/editor/Editor.tsx` owns workspace/editor/auth/selection/recovery state; `src/lib/notes.ts` owns browser CRUD/history and note/page types. `document.ts` combines legacy pages with pageBreak nodes. `pagination.ts` measures A4. `nodes.tsx`, `graph.tsx`, `latex.ts`, `paste.ts` and current uncommitted `blocks.tsx` define rich content behavior.
@@ -168,3 +168,20 @@ Validation for this update: 50 tests in 11 files, TypeScript and production buil
 ## Block action flyouts — 2026-10-22
 
 BlockControls now uses installed Radix dropdown primitives with workspace-contained portals. Turn into and Color are separate collision-aware desktop flyouts; at 560px and below they use viewport-inset panels with Back rows. Compact grouped actions retain native grip dragging and show block statistics in a footer. Conversion search directly exposes text/headings/lists/code/quote commands, with current-type icons/checkmarks. No persistence, dependency, route, auth or A4 geometry changes. Browser verification used an isolated TipTap fixture with production controls/CSS; full workspace/live services and physical touch remain unverified. See `changelog/2026-10-22-block-action-flyouts.md` for checks, usage and rollback.
+
+## Larger document preview — 2026-10-23
+
+Docked references use a shared 46vw width capped at 800px; mobile retains the full-width overlay. Attachment previews remove the inline 65vh cap and surrounding padding/margins inside the dock, filling the available pane height. Download is a labeled icon in the reference header; inline previews retain their download links. Persisted content is unchanged. See `changelog/2026-10-23-larger-document-preview.md` for verification and limitations.
+
+## Dashboard spacing — 2026-10-23
+
+Home uses a centered 1120px shell with responsive gutters, 24px gaps, existing spacing/radius tokens and softly tinted bordered containers. A local `--home-surface` mixes paper with 4% ink for both themes. Continue writing uses text/control grid columns that stack on mobile, preventing metadata overlap. No route, dependency, persistence or printable geometry changes. Actual Home/CSS browser preview used synthetic data; live workspace flows remain unverified. See `changelog/2026-10-23-dashboard-spacing.md`.
+
+
+## Unified tab workspace — 2026-10-23
+
+`src/components/workspace/Workspace.tsx` owns session gating, owner-scoped version-1 layout, active pane, picking and the shared header. `model.ts` implements tab open/close/reorder/move/merge and validated restoration. Two panes support horizontal/vertical splits; narrow screens retain the split while showing one pane with a switch action. Each resource mounts once, with CSS grid placement controlling its pane. Closed resources stay cached for the session so pending saves, selection, scroll and undo survive; only open descriptors restore after refresh. A second simultaneous note view uses the existing read-only ReferencePane. Study tools retain one live instance.
+
+Editor accepts a workspace adapter for stable note identity, navigation, metadata updates, active-pane keyboard gating and the header portal. Standalone shared-note links retain the original Editor flow. Editor extensions, note/page storage and SQL are unchanged. The title/tag/folder ribbon and permanent format toolbar are hidden in this shell; rename, history, export, favorites and settings remain in the header/overflow. Edit/Read has explicit dropdown choices and the switcher stays centered. Each pane's + menu targets that pane; existing resources use a centered search dialog. Single-pane menus offer split actions; dragging works across layouts.
+
+Layout descriptors use `lemma:<owner>:workspace:v1` localStorage. Independently opened files use IndexedDB `lemma-workspace-files` / `files`, keyed by owner plus SHA-256 content identity. Closing tabs does not delete notes or cached file bytes. Storage errors surface; no cloud upload/migration was added. Native PDF capabilities depend on the browser. See `changelog/2026-10-23-unified-workspace.md` for usage, checks and limitations.

@@ -1,5 +1,8 @@
 // @ts-nocheck -- ported from the original Lemma codebase, which used looser type settings
 import { lazy, Suspense } from "react";
+import { HeaderPortal } from "../workspace/Workspace";
+import { NoteHeader } from "../workspace/NoteHeader";
+import type { EmbeddedWorkspace } from "../workspace/Workspace";
 const CodeLab = lazy(() => import("@/components/spaces/CodeLab"));
 const Flashcards = lazy(() => import("@/components/spaces/Flashcards"));
 import { fileBlocks, trackInsertion } from "./insertFiles";
@@ -232,7 +235,9 @@ function Dropdown({
     </div>
   );
 }
-export default function Editor() {
+export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } = {}) {
+  const workspaceRef = useRef(workspace);
+  workspaceRef.current = workspace;
   const router = useRouter();
   const changeTheme = (value: "system" | "light" | "dark") => {
     setTheme(value);
@@ -253,7 +258,7 @@ export default function Editor() {
     [shareError, setShareError] = useState(""),
     [saved, setSaved] = useState<"saved" | "saving" | "offline">("saved"),
     [search, setSearch] = useState(""),
-    [sidebar, setSidebar] = useState(true),
+    [sidebar, setSidebar] = useState(!workspace?.noteId),
     [menu, setMenu] = useState(false),
     [exportOpen, setExportOpen] = useState(false),
     [preview, setPreview] = useState(false),
@@ -261,7 +266,7 @@ export default function Editor() {
     [focus, setFocus] = useState(false),
     [history, setHistory] = useState<Version[]>([]),
     [historyOpen, setHistoryOpen] = useState(false),
-    [dark, setDark] = useState(false),
+    [dark, setDark] = useState(() => document.documentElement.classList.contains("dark")),
     [theme, setTheme] = useState<"system" | "light" | "dark">("system"),
     [darkinit, setDarkinit] = useState(false),
     [menuIndex, setMenuIndex] = useState(0),
@@ -283,11 +288,16 @@ export default function Editor() {
     if (typeof location === "undefined") return "notes";
     const params = new URLSearchParams(location.search);
     if (params.has("share")) return "notes";
+    if (workspace) return "notes";
     const value = params.get("space");
     return value === "code" || value === "cards" ? value : "notes";
   });
   const [home, setHome] = useState(true);
   const changeSpace = useCallback((next: Space) => {
+    if (workspaceRef.current) {
+      workspaceRef.current.onSpace(next);
+      return;
+    }
     setSpace(next);
     setFocus(false);
     setMenu(false);
@@ -302,7 +312,8 @@ export default function Editor() {
   }, [dark]);
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
-      if (sharedView || !event.altKey || event.metaKey || event.ctrlKey) return;
+      if (workspaceRef.current || sharedView || !event.altKey || event.metaKey || event.ctrlKey)
+        return;
       const next = { Digit1: "notes", Digit2: "code", Digit3: "cards" }[event.code] as
         Space | undefined;
       if (next) {
@@ -322,7 +333,9 @@ export default function Editor() {
     />
   ) : null;
   const switcher =
-    !sharedView && !focus ? <SpaceSwitcher value={space} onChange={changeSpace} /> : null;
+    !workspace && !sharedView && !focus ? (
+      <SpaceSwitcher value={space} onChange={changeSpace} />
+    ) : null;
   const [preferences, setPreferences] = useState<Preferences>(defaultPreferences);
   const changePreferences = (next: Preferences) => {
     setPreferences(next);
@@ -366,6 +379,7 @@ export default function Editor() {
       );
     window.addEventListener("lemma:draft-error", warn);
     const open = (event) => {
+      if (workspaceRef.current) return;
       setReferenceAttachment(event.detail);
       setReferenceOpen(true);
     };
@@ -394,6 +408,15 @@ export default function Editor() {
   useEffect(() => {
     activeRef.current = active;
   }, [active]);
+  useEffect(() => {
+    const note = workspace?.externalNote;
+    const current = activeRef.current;
+    if (note && current?.id === note.id && note.updated_at > current.updated_at) {
+      activeRef.current = note;
+      setActive(note);
+      setNotes((old) => old.map((n) => (n.id === note.id ? note : n)));
+    }
+  }, [workspace?.externalNote]);
   const insertSnippetRef = useRef<(item: { template: string }) => void>(() => {});
   const runCommandRef = useRef<(command: string) => void>(() => {});
   const userRef = useRef<User | null>(user);
@@ -486,7 +509,8 @@ export default function Editor() {
       PageBreak,
     ],
     content: activePage?.content || { type: "doc", content: [{ type: "paragraph" }] },
-    onUpdate: ({ editor }) => {
+    onUpdate: ({ editor, transaction }) => {
+      if (!transaction.docChanged) return;
       const json = editor.getJSON();
       const current = activeRef.current;
       if (current) {
@@ -656,12 +680,16 @@ export default function Editor() {
       merged.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
       setNotes(merged);
       const id =
+        workspaceRef.current?.noteId ||
         params.get("note") ||
         (localStorage.getItem("lemma:preferences")?.includes('\"startup\":\"last\"')
           ? localStorage.getItem("lemma:last-note")
           : null);
-      let current = merged.find((note) => note.id === id) || merged[0] || null;
-      if (!current && (!supabase || user?.id)) {
+      let current =
+        merged.find((note) => note.id === id) ||
+        (workspaceRef.current?.noteId ? null : merged[0]) ||
+        null;
+      if (!current && !workspaceRef.current?.noteId && (!supabase || user?.id)) {
         const demo = newNote();
         demo.title = "Sommes géométriques";
         demo.content = sample;
@@ -681,7 +709,7 @@ export default function Editor() {
           pagesFor(current).find((item) => item.id === params.get("page")) || pagesFor(current)[0];
         setActivePageId(page.id);
       }
-      setLibrary(!id);
+      setLibrary(workspaceRef.current ? !workspaceRef.current.noteId : !id);
       setPreview(params.get("mode") === "read");
       setSharedView(false);
       setDemoMode(localStorage.getItem("lemma:demo") === "true");
@@ -705,10 +733,13 @@ export default function Editor() {
         .filter((note): note is Note => !!note)
         .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
       setNotes(local);
-      const current = local[0] || null;
+      const current =
+        local.find((note) => note.id === workspaceRef.current?.noteId) ||
+        (workspaceRef.current?.noteId ? null : local[0]) ||
+        null;
       setActive(current);
       if (current) setActivePageId(pagesFor(current)[0].id);
-      setLibrary(!params.has("note"));
+      setLibrary(workspaceRef.current ? !workspaceRef.current.noteId : !params.has("note"));
       setSaved("offline");
     }
   }, [
@@ -724,7 +755,7 @@ export default function Editor() {
   ]);
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      setSidebar(!window.matchMedia("(max-width: 700px)").matches);
+      setSidebar(!workspaceRef.current?.noteId && !window.matchMedia("(max-width: 700px)").matches);
       const storedTheme = localStorage.getItem("lemma:theme");
       const initialTheme =
         storedTheme === "light" || storedTheme === "dark" || storedTheme === "system"
@@ -805,6 +836,7 @@ export default function Editor() {
   }, [searchOpen]);
   useEffect(() => {
     const onGlobalKey = (e: KeyboardEvent) => {
+      if (workspaceRef.current && !workspaceRef.current.active) return;
       if (space !== "notes") return;
       if (!sharedView && (e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "p") {
         e.preventDefault();
@@ -813,7 +845,8 @@ export default function Editor() {
       }
       if (!sharedView && (e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "f") {
         e.preventDefault();
-        setFocus((v) => !v);
+        if (workspaceRef.current) workspaceRef.current.onFocus();
+        else setFocus((v) => !v);
         return;
       }
       if (e.key === "Escape" && focus) setFocus(false);
@@ -825,6 +858,7 @@ export default function Editor() {
     if (!editor) return;
     let previous = "";
     const onDemoKey = (e: KeyboardEvent) => {
+      if (workspaceRef.current && !workspaceRef.current.active) return;
       if (
         e.key === "\\" &&
         previous === "$" &&
@@ -875,7 +909,7 @@ export default function Editor() {
     editor?.setEditable(!preview && !sharedView);
   }, [editor, preview, sharedView]);
   useEffect(() => {
-    if (!active || sharedView) return;
+    if (!active || sharedView || (workspaceRef.current && library)) return;
     const timer = setTimeout(async () => {
       try {
         await repository.save(active);
@@ -887,9 +921,13 @@ export default function Editor() {
       }
     }, 750);
     return () => clearTimeout(timer);
-  }, [active, sharedView, user?.id]);
+  }, [active, sharedView, user?.id, library]);
+  useEffect(() => {
+    if (active && workspace?.noteId === active.id) workspaceRef.current?.onChange(active);
+  }, [active, workspace?.noteId]);
   useEffect(() => {
     const onPop = () => {
+      if (workspaceRef.current) return;
       const params = new URLSearchParams(location.search);
       const nextSpace = params.get("space");
       setSpace(
@@ -940,6 +978,7 @@ export default function Editor() {
   useEffect(() => {
     if (!editor) return;
     const onKey = (e: KeyboardEvent) => {
+      if (workspaceRef.current && !workspaceRef.current.active) return;
       if (
         e.defaultPrevented ||
         space !== "notes" ||
@@ -1187,11 +1226,19 @@ export default function Editor() {
   const showLibrary = (folderId: string | null = null, favorites = false) => {
     setHome(false);
     setCurrentFolder(folderId);
+    if (workspaceRef.current) {
+      workspaceRef.current.onLibrary();
+      return;
+    }
     setFavoritesOnly(favorites);
     setLibrary(true);
     router.push("/", { scroll: false });
   };
   const activate = (note: Note, pageId?: string) => {
+    if (workspaceRef.current) {
+      workspaceRef.current.onOpen(note);
+      return;
+    }
     if (window.matchMedia("(max-width: 700px)").matches) setSidebar(false);
     setSpace("notes");
     activeRef.current = note;
@@ -1253,6 +1300,10 @@ export default function Editor() {
     input.click();
   };
   const create = async (folderId: string | null = currentFolder) => {
+    if (workspaceRef.current) {
+      workspaceRef.current.onCreate(folderId);
+      return;
+    }
     const n = newNote(folderId);
     activeRef.current = n;
     const page = pagesFor(n)[0];
@@ -1335,6 +1386,16 @@ export default function Editor() {
   const deleteCurrent = async () => {
     if (!active || !window.confirm(`Delete “${active.title}”? This cannot be undone.`)) return;
     const id = active.id;
+    if (workspaceRef.current) {
+      try {
+        await repository.remove(id);
+        draftStorage.removeItem(draftStorageKey(user?.id, id));
+        workspaceRef.current.onRemoved(id);
+      } catch {
+        setSaved("offline");
+      }
+      return;
+    }
     setNotes((ns) => ns.filter((n) => n.id !== id));
     draftStorage.removeItem(draftStorageKey(user?.id, id));
     setActive(notes.find((n) => n.id !== id) || null);
@@ -1348,7 +1409,9 @@ export default function Editor() {
     if (!active) return;
     const title = window.prompt("Rename note", active.title);
     if (title?.trim()) {
-      const n = { ...active, title: title.trim() };
+      const n = { ...active, title: title.trim(), updated_at: new Date().toISOString() };
+      activeRef.current = n;
+      draftStorage.setItem(draftStorageKey(user?.id, n.id), JSON.stringify(n));
       setActive(n);
       setNotes((ns) => ns.map((x) => (x.id === n.id ? n : x)));
     }
@@ -1560,6 +1623,7 @@ export default function Editor() {
         activeRef.current = n;
       }
       await repository.save(n);
+      workspaceRef.current?.onChange(n);
     } else {
       const f = { ...item, name: name.trim() } as Folder;
       setFolders((fs) => fs.map((x) => (x.id === f.id ? f : x)));
@@ -1569,6 +1633,7 @@ export default function Editor() {
   const deleteNote = async (note: Note) => {
     if (!window.confirm(`Delete “${note.title}”?`)) return;
     await repository.remove(note.id);
+    workspaceRef.current?.onRemoved(note.id);
     setNotes((ns) => ns.filter((n) => n.id !== note.id));
     if (active?.id === note.id) showLibrary();
     draftStorage.removeItem(draftStorageKey(user?.id, note.id));
@@ -1621,6 +1686,8 @@ export default function Editor() {
       <Button
         variant="ghost"
         key={note.id}
+        draggable={!!workspace}
+        onDragStart={(event) => workspace?.onDragNote(event, note)}
         className={`note-item tree-note ${active?.id === note.id ? "active" : ""}`}
         onClick={() => activate(note)}
       >
@@ -1724,6 +1791,8 @@ export default function Editor() {
         variant="ghost"
         key={note.id}
         className="library-note"
+        draggable={!!workspace}
+        onDragStart={(event) => workspace?.onDragNote(event, note)}
         onClick={() =>
           activate(
             note,
@@ -1765,6 +1834,10 @@ export default function Editor() {
       </main>
     );
   if (supabase && !user && !sharedView) return <AuthScreen />;
+  if (workspace?.noteId && !active)
+    return (
+      <p role="status">This note is loading or unavailable. Reopen it from the library to retry.</p>
+    );
   if (space !== "notes" && !sharedView)
     return (
       <main className={`lemma-app space-app ${dark ? "dark" : ""}`}>
@@ -2323,7 +2396,7 @@ export default function Editor() {
       <section
         className={`workspace ${referenceOpen ? `has-reference reference-${referenceSide}` : ""}`}
       >
-        {!sharedView && (
+        {!workspace && !sharedView && (
           <div className="reference-tools">
             <Button variant="ghost" onClick={() => setReferenceOpen((v) => !v)}>
               Open beside
@@ -2354,145 +2427,181 @@ export default function Editor() {
           />
         )}
 
-        {!focus && (
-          <header className="topbar">
-            {!sidebar && !preview && (
-              <Button
-                variant="ghost"
-                className="icon-button"
-                title="Open sidebar"
-                onClick={() => setSidebar(true)}
-              >
-                <PanelLeftOpen size={17} />
-              </Button>
+        {!focus && (!workspace || workspace.active) && (
+          <HeaderPortal host={workspace?.headerHost}>
+            {workspace ? (
+              <NoteHeader
+                title={active?.title || "Untitled"}
+                folder={folderName(active?.folder_id || null)}
+                read={preview}
+                saved={saved}
+                onRead={setPreview}
+                onFocus={workspace.onFocus}
+                onShare={shareLink}
+                onRename={rename}
+                onLibrary={() => showLibrary()}
+                onSidebar={() => setSidebar((v) => !v)}
+                onExport={() => setExportOpen(true)}
+                onHistory={loadHistory}
+                onSettings={() => setSettingsOpen(true)}
+                onFavorite={toggleFav}
+                shared={!!active?.share_token}
+                onRevoke={revokeShare}
+                exportDialog={
+                  exportOpen && editor ? (
+                    <ExportDialog
+                      title={active?.title || "Untitled"}
+                      editor={editor}
+                      onClose={() => setExportOpen(false)}
+                    />
+                  ) : null
+                }
+              />
+            ) : (
+              <header className="topbar">
+                {!sidebar && !preview && (
+                  <Button
+                    variant="ghost"
+                    className="icon-button"
+                    title="Open sidebar"
+                    onClick={() => setSidebar(true)}
+                  >
+                    <PanelLeftOpen size={17} />
+                  </Button>
+                )}
+                <div className="breadcrumb">
+                  <Button
+                    variant="ghost"
+                    className="breadcrumb-library"
+                    disabled={sharedView}
+                    onClick={() => showLibrary()}
+                  >
+                    <Home size={14} />
+                    {folderName(active?.folder_id || null)}
+                  </Button>
+                  <span className="crumb-sep" aria-hidden="true">
+                    /
+                  </span>
+                  <Button
+                    variant="ghost"
+                    onClick={rename}
+                    disabled={sharedView}
+                    className="breadcrumb-title"
+                  >
+                    {active?.title || "Untitled"} <ChevronDown size={13} />
+                  </Button>
+                </div>
+                <div className="top-actions">
+                  {!sharedView && (
+                    <Button
+                      variant="ghost"
+                      className="icon-button"
+                      title="Search notes (⌘⇧P)"
+                      onClick={() => setSearchOpen(true)}
+                    >
+                      <Search size={16} />
+                    </Button>
+                  )}
+                  <div className={`save-status ${saved}`}>
+                    <span className="status-dot" />
+                    {saved === "saving"
+                      ? "Saving…"
+                      : saved === "offline"
+                        ? "Saved locally"
+                        : "Saved"}
+                  </div>
+                  {active && !preview && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        className="icon-button"
+                        title="Favorite"
+                        onClick={toggleFav}
+                      >
+                        <Star size={16} fill={active.is_favorite ? "currentColor" : "none"} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="icon-button"
+                        title="Share read-only link"
+                        onClick={shareLink}
+                      >
+                        <Share2 size={16} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="icon-button"
+                        title="Focus mode (⌘⇧F)"
+                        onClick={() => (workspace ? workspace.onFocus() : setFocus(true))}
+                      >
+                        <Focus size={16} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="icon-button"
+                        title="Writing settings"
+                        onClick={() => setSettingsOpen(true)}
+                      >
+                        <Settings2 size={16} />
+                      </Button>
+                    </>
+                  )}
+                  {sharedView ? (
+                    <span className="shared-read-label">
+                      <Eye size={14} /> Shared · read only
+                    </span>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      className={`action-button ${preview ? "selected" : ""}`}
+                      onClick={() => setPreview(!preview)}
+                    >
+                      <Eye size={15} />
+                      <span>{preview ? "Edit" : "Read mode"}</span>
+                    </Button>
+                  )}
+                  {preview && (
+                    <Button
+                      variant="ghost"
+                      className="icon-button"
+                      title="Focus mode"
+                      onClick={() => (workspace ? workspace.onFocus() : setFocus(true))}
+                    >
+                      <Focus size={16} />
+                    </Button>
+                  )}
+                  <div className="menu-anchor">
+                    <Button
+                      variant="ghost"
+                      className="export-button"
+                      onClick={() => setExportOpen(!exportOpen)}
+                    >
+                      <Download size={15} />
+                      <span>Export</span>
+                      <ChevronDown size={13} />
+                    </Button>
+                    {active?.share_token && !sharedView && (
+                      <Button variant="ghost" title="Stop sharing" onClick={revokeShare}>
+                        <X size={15} />
+                      </Button>
+                    )}
+                    {exportOpen && editor && (
+                      <ExportDialog
+                        title={active?.title || "Untitled"}
+                        editor={editor}
+                        onClose={() => setExportOpen(false)}
+                      />
+                    )}
+                    {!sharedView && (
+                      <Button variant="ghost" title="Version history" onClick={loadHistory}>
+                        <Clock3 size={15} />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </header>
             )}
-            <div className="breadcrumb">
-              <Button
-                variant="ghost"
-                className="breadcrumb-library"
-                disabled={sharedView}
-                onClick={() => showLibrary()}
-              >
-                <Home size={14} />
-                {folderName(active?.folder_id || null)}
-              </Button>
-              <span className="crumb-sep" aria-hidden="true">
-                /
-              </span>
-              <Button
-                variant="ghost"
-                onClick={rename}
-                disabled={sharedView}
-                className="breadcrumb-title"
-              >
-                {active?.title || "Untitled"} <ChevronDown size={13} />
-              </Button>
-            </div>
-            <div className="top-actions">
-              {!sharedView && (
-                <Button
-                  variant="ghost"
-                  className="icon-button"
-                  title="Search notes (⌘⇧P)"
-                  onClick={() => setSearchOpen(true)}
-                >
-                  <Search size={16} />
-                </Button>
-              )}
-              <div className={`save-status ${saved}`}>
-                <span className="status-dot" />
-                {saved === "saving" ? "Saving…" : saved === "offline" ? "Saved locally" : "Saved"}
-              </div>
-              {active && !preview && (
-                <>
-                  <Button
-                    variant="ghost"
-                    className="icon-button"
-                    title="Favorite"
-                    onClick={toggleFav}
-                  >
-                    <Star size={16} fill={active.is_favorite ? "currentColor" : "none"} />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="icon-button"
-                    title="Share read-only link"
-                    onClick={shareLink}
-                  >
-                    <Share2 size={16} />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="icon-button"
-                    title="Focus mode (⌘⇧F)"
-                    onClick={() => setFocus(true)}
-                  >
-                    <Focus size={16} />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="icon-button"
-                    title="Writing settings"
-                    onClick={() => setSettingsOpen(true)}
-                  >
-                    <Settings2 size={16} />
-                  </Button>
-                </>
-              )}
-              {sharedView ? (
-                <span className="shared-read-label">
-                  <Eye size={14} /> Shared · read only
-                </span>
-              ) : (
-                <Button
-                  variant="ghost"
-                  className={`action-button ${preview ? "selected" : ""}`}
-                  onClick={() => setPreview(!preview)}
-                >
-                  <Eye size={15} />
-                  <span>{preview ? "Edit" : "Read mode"}</span>
-                </Button>
-              )}
-              {preview && (
-                <Button
-                  variant="ghost"
-                  className="icon-button"
-                  title="Focus mode"
-                  onClick={() => setFocus(true)}
-                >
-                  <Focus size={16} />
-                </Button>
-              )}
-              <div className="menu-anchor">
-                <Button
-                  variant="ghost"
-                  className="export-button"
-                  onClick={() => setExportOpen(!exportOpen)}
-                >
-                  <Download size={15} />
-                  <span>Export</span>
-                  <ChevronDown size={13} />
-                </Button>
-                {active?.share_token && !sharedView && (
-                  <Button variant="ghost" title="Stop sharing" onClick={revokeShare}>
-                    <X size={15} />
-                  </Button>
-                )}
-                {exportOpen && editor && (
-                  <ExportDialog
-                    title={active?.title || "Untitled"}
-                    editor={editor}
-                    onClose={() => setExportOpen(false)}
-                  />
-                )}
-                {!sharedView && (
-                  <Button variant="ghost" title="Version history" onClick={loadHistory}>
-                    <Clock3 size={15} />
-                  </Button>
-                )}
-              </div>
-            </div>
-          </header>
+          </HeaderPortal>
         )}
         {focus && (
           <Button
@@ -2903,7 +3012,7 @@ export default function Editor() {
             </div>
           </article>
         </div>
-        <div id="graph-editor-panel" className="graph-editor-panel" />
+        <div className="graph-editor-panel" />
         {outlineItems.length > 0 && (
           <Outline
             key={active?.id}

@@ -1,3 +1,4 @@
+import { useEditorEditable } from "./useEditorEditable";
 import { ResizeHandle } from "./ResizeHandle";
 import { Node, mergeAttributes } from "@tiptap/core";
 import {
@@ -37,6 +38,7 @@ export const imageFileContent = async (file: File) => {
 };
 
 function ImageView({ node, editor, updateAttributes }: NodeViewProps) {
+  const editable = useEditorEditable(editor);
   const width = Math.max(20, Math.min(100, Number(node.attrs["width"]) || 100));
   return (
     <NodeViewWrapper
@@ -53,11 +55,13 @@ function ImageView({ node, editor, updateAttributes }: NodeViewProps) {
       ) : (
         <span>Image unavailable</span>
       )}
-      {editor.isEditable && (
+      {editable && (
         <ResizeHandle
           label="Resize image"
           width={width}
-          onResize={(value) => updateAttributes({ width: value })}
+          onResize={(value) => {
+            if (editor.isEditable) updateAttributes({ width: value });
+          }}
         />
       )}
     </NodeViewWrapper>
@@ -92,6 +96,7 @@ export const ImageBlock = Node.create({
 });
 
 function MissingImageView({ node, editor, getPos }: NodeViewProps) {
+  const editable = useEditorEditable(editor);
   const input = useRef<HTMLInputElement>(null);
   return (
     <NodeViewWrapper className="missing-image" contentEditable={false}>
@@ -100,7 +105,7 @@ function MissingImageView({ node, editor, getPos }: NodeViewProps) {
         <strong>{node.attrs["name"]}</strong>
         <small>Image file was not included in the pasted text.</small>
       </span>
-      {editor.isEditable && (
+      {editable && (
         <Button variant="ghost" type="button" onClick={() => input.current?.click()}>
           Attach image
         </Button>

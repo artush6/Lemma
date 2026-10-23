@@ -90,7 +90,15 @@ const ident = (s: string) =>
     .replace(/[^\p{L}\p{N}_]+/gu, "_")
     .replace(/^(\d)/, "_$1") || "dataset";
 
-export default function CodeLab({ ownerId, dark = false }: { ownerId?: string; dark?: boolean }) {
+export default function CodeLab({
+  ownerId,
+  dark = false,
+  active: paneActive = true,
+}: {
+  ownerId?: string;
+  dark?: boolean;
+  active?: boolean;
+}) {
   const reducedMotion = useReducedMotion();
   const { ask, confirm, dialogs } = useWorkspaceDialogs();
   const [datasets, setDatasets, datasetError] = useStored<Dataset[]>(
@@ -176,6 +184,7 @@ export default function CodeLab({ ownerId, dark = false }: { ownerId?: string; d
   runRef.current = run;
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
+      if (!paneActive) return;
       if (
         e.defaultPrevented ||
         e.repeat ||
@@ -189,7 +198,7 @@ export default function CodeLab({ ownerId, dark = false }: { ownerId?: string; d
     };
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
-  }, [run]);
+  }, [run, paneActive]);
 
   const addFolder = async () => {
     const name = await ask("Folder name");

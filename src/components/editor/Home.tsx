@@ -102,11 +102,13 @@ export default function Home({
 
       {last && (
         <Button variant="ghost" className="home-continue" onClick={() => onOpen(last)}>
-          <span className="home-eyebrow">Continue writing</span>
-          <strong>{last.title || "Untitled"}</strong>
-          <small>
-            {folderName(last.folder_id)} · edited {relative(last.updated_at)}
-          </small>
+          <span className="home-continue-copy">
+            <span className="home-eyebrow">Continue writing</span>
+            <strong>{last.title || "Untitled"}</strong>
+            <small>
+              {folderName(last.folder_id)} · edited {relative(last.updated_at)}
+            </small>
+          </span>
           <span className="home-continue-cta">
             Open <ArrowRight size={14} />
           </span>

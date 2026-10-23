@@ -1,4 +1,5 @@
 // @ts-nocheck -- function-plot ships loose types
+import { useEditorEditable } from "./useEditorEditable";
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ResizeHandle } from "./ResizeHandle";
@@ -167,20 +168,27 @@ function Tex({ src }: { src: string }) {
 }
 
 export function GraphView({ node, updateAttributes, selected, editor }: NodeViewProps) {
+  const editable = useEditorEditable(editor);
   const target = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!editable) setOpen(false);
+  }, [editable]);
   const [focusRow, setFocusRow] = useState<number | null>(null);
   const panelId = useId();
   const [panelHost, setPanelHost] = useState<HTMLElement | null>(null);
   const [plotWidth, setPlotWidth] = useState(0);
   useEffect(() => {
-    setPanelHost(document.getElementById("graph-editor-panel"));
+    setPanelHost(
+      editor.view.dom.closest(".workspace")?.querySelector<HTMLElement>(".graph-editor-panel") ||
+        null,
+    );
     const closeOther = (event: Event) => {
       if ((event as CustomEvent).detail !== panelId) setOpen(false);
     };
     window.addEventListener("lemma:graph-editor", closeOther);
     return () => window.removeEventListener("lemma:graph-editor", closeOther);
-  }, [panelId]);
+  }, [editor, panelId]);
   useEffect(() => {
     if (!open) return;
     const close = (event: KeyboardEvent) => {
@@ -334,12 +342,14 @@ export function GraphView({ node, updateAttributes, selected, editor }: NodeView
       contentEditable={false}
       data-drag-handle
     >
-      {editor.isEditable && (
+      {editable && (
         <ResizeHandle
           label="Resize graph"
           width={Number(a.width) || 100}
           height={Number(a.height) || 340}
-          onResize={(width, height) => updateAttributes({ width, height })}
+          onResize={(width, height) => {
+            if (editor.isEditable) updateAttributes({ width, height });
+          }}
         />
       )}
       <div className="graph-main">
@@ -359,8 +369,9 @@ export function GraphView({ node, updateAttributes, selected, editor }: NodeView
         <Button
           variant="ghost"
           className="graph-edit-toggle"
-          disabled={!editor.isEditable}
+          disabled={!editable}
           onClick={() => {
+            if (!editor.isEditable) return;
             if (!open)
               window.dispatchEvent(new CustomEvent("lemma:graph-editor", { detail: panelId }));
             setOpen(!open);
@@ -370,6 +381,7 @@ export function GraphView({ node, updateAttributes, selected, editor }: NodeView
         </Button>
       </div>
       {open &&
+        editable &&
         panelHost &&
         createPortal(
           <aside className="graph-composer" aria-label="Graph editor">

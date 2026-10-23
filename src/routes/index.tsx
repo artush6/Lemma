@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ClientOnly } from "@tanstack/react-router";
-import Editor from "@/components/editor/Editor";
+import Workspace from "@/components/workspace/Workspace";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -23,7 +23,7 @@ export const Route = createFileRoute("/")({
   }),
   component: () => (
     <ClientOnly fallback={null}>
-      <Editor />
+      <Workspace />
     </ClientOnly>
   ),
 });

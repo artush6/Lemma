@@ -9,10 +9,16 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { TextStyle, Color } from "@tiptap/extension-text-style";
 import Highlight from "@tiptap/extension-highlight";
-import { X, FileUp } from "lucide-react";
+import { X, FileUp, Download } from "lucide-react";
 import { MathBlock, InlineMath, Graph, Callout, PageBreak } from "./nodes";
 import { ImageBlock, ImagePlaceholder, ToggleHeading, ToggleBody } from "./blocks";
-import { AttachmentBlock, AttachmentPreview, readAttachment, type Attachment } from "./attachments";
+import {
+  AttachmentBlock,
+  AttachmentPreview,
+  readAttachment,
+  validAttachment,
+  type Attachment,
+} from "./attachments";
 import { documentContent } from "./document";
 import type { Note } from "@/lib/notes";
 export function ReferencePane({
@@ -96,6 +102,17 @@ export function ReferencePane({
     >
       <header>
         <strong>{attachment ? attachment.name : "Read beside your note"}</strong>
+        {attachment && validAttachment(attachment) && (
+          <a
+            className="reference-download"
+            href={attachment.src}
+            download={attachment.name}
+            aria-label={`Download ${attachment.name}`}
+            title="Download document"
+          >
+            <Download size={18} />
+          </a>
+        )}
         <ReferencePlacement
           side={side}
           onSide={onSide}
@@ -152,7 +169,7 @@ export function ReferencePane({
       )}
       <div className="reference-body">
         {attachment ? (
-          <AttachmentPreview attachment={attachment} />
+          <AttachmentPreview attachment={attachment} showDownload={false} />
         ) : note ? (
           <>
             <h2>{note.title}</h2>
