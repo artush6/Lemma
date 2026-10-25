@@ -20,6 +20,7 @@ import type { User } from "@supabase/supabase-js";
 import type { LucideIcon } from "lucide-react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { loadDocument } from "./loadDocument";
+import { subscribeEditorSession } from "./editorSession";
 import { ExportDialog } from "./ExportDialog";
 import { draftStorage } from "@/lib/draftStorage";
 import { AttachmentBlock, readAttachment, attachmentAccept } from "./attachments";
@@ -595,6 +596,7 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
     },
   });
   const refresh = useCallback(async () => {
+    const ownerId = userRef.current?.id;
     const params = new URLSearchParams(location.search);
     const token = params.get("share");
     if (token && supabase) {
@@ -626,23 +628,27 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
     }
     try {
       await draftStorage.hydrate();
+      if (userRef.current?.id !== ownerId) return;
       const remote = await repository.list();
       let remoteFolders: Folder[] = [];
       try {
         remoteFolders = await repository.listFolders();
       } catch {}
-      const prefix = ownerStoragePrefix(user?.id);
+      if (userRef.current?.id !== ownerId) return;
+      const prefix = ownerStoragePrefix(ownerId);
       let localFolders: Folder[] = [];
       try {
         localFolders = JSON.parse(
-          localStorage.getItem(folderStorageKey(user?.id)) || "[]",
+          localStorage.getItem(folderStorageKey(ownerId)) || "[]",
         ) as Folder[];
       } catch {}
       for (const folder of localFolders)
         if (!remoteFolders.some((item) => item.id === folder.id))
           try {
+            if (userRef.current?.id !== ownerId) return;
             await repository.saveFolder(folder);
           } catch {}
+      if (userRef.current?.id !== ownerId) return;
       const mergedFolders = [...remoteFolders];
       for (const folder of localFolders)
         if (!mergedFolders.some((item) => item.id === folder.id)) mergedFolders.push(folder);
@@ -689,12 +695,12 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
         merged.find((note) => note.id === id) ||
         (workspaceRef.current?.noteId ? null : merged[0]) ||
         null;
-      if (!current && !workspaceRef.current?.noteId && (!supabase || user?.id)) {
+      if (!current && !workspaceRef.current?.noteId && (!supabase || ownerId)) {
         const demo = newNote();
         demo.title = "Sommes géométriques";
         demo.content = sample;
         demo.pages = [{ ...pagesFor(demo)[0], content: sample }];
-        draftStorage.setItem(draftStorageKey(user?.id, demo.id), JSON.stringify(demo));
+        draftStorage.setItem(draftStorageKey(ownerId, demo.id), JSON.stringify(demo));
         merged.unshift(demo);
         current = demo;
         try {
@@ -703,6 +709,7 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
           setSaved("offline");
         }
       }
+      if (userRef.current?.id !== ownerId) return;
       setActive(current);
       if (current) {
         const page =
@@ -714,12 +721,11 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
       setSharedView(false);
       setDemoMode(localStorage.getItem("lemma:demo") === "true");
     } catch {
+      if (userRef.current?.id !== ownerId) return;
       try {
-        setFolders(
-          JSON.parse(localStorage.getItem(folderStorageKey(user?.id)) || "[]") as Folder[],
-        );
+        setFolders(JSON.parse(localStorage.getItem(folderStorageKey(ownerId)) || "[]") as Folder[]);
       } catch {}
-      const prefix = `${ownerStoragePrefix(user?.id)}note:`;
+      const prefix = `${ownerStoragePrefix(ownerId)}note:`;
       const local = draftStorage
         .keys()
         .filter((key) => key.startsWith(prefix))
@@ -734,16 +740,20 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
         .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
       setNotes(local);
       const current =
-        local.find((note) => note.id === workspaceRef.current?.noteId) ||
+        local.find((note) => note.id === (workspaceRef.current?.noteId || params.get("note"))) ||
         (workspaceRef.current?.noteId ? null : local[0]) ||
         null;
       setActive(current);
-      if (current) setActivePageId(pagesFor(current)[0].id);
+      if (current)
+        setActivePageId(
+          pagesFor(current).find((page) => page.id === params.get("page"))?.id ||
+            pagesFor(current)[0].id,
+        );
+      setPreview(params.get("mode") === "read");
       setLibrary(workspaceRef.current ? !workspaceRef.current.noteId : !params.has("note"));
       setSaved("offline");
     }
   }, [
-    user,
     setNotes,
     setActive,
     setActivePageId,
@@ -787,33 +797,30 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
     });
     if (!supabase) {
       requestAnimationFrame(() => setAuthReady(true));
-      setTimeout(() => void refresh(), 0);
-      return () => cancelAnimationFrame(frame);
+      const timer = setTimeout(() => void refresh(), 0);
+      return () => {
+        cancelAnimationFrame(frame);
+        clearTimeout(timer);
+      };
     }
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser((prev) => (prev?.id === session?.user?.id ? prev : session?.user || null));
-      setAuthReady(true);
-      if (session) setTimeout(() => void refresh(), 0);
-      else {
+    const unsubscribe = subscribeEditorSession(supabase.auth, {
+      user: (nextUser) => {
+        userRef.current = nextUser;
+        setUser((prev) => (prev?.id === nextUser?.id ? prev : nextUser));
+      },
+      ready: () => setAuthReady(true),
+      load: () => void refresh(),
+      shared: new URLSearchParams(location.search).has("share"),
+      clear: () => {
         setNotes([]);
         setFolders([]);
         setActive(null);
-      }
-    });
-    void supabase.auth.getSession().then(({ data }) => {
-      setUser((prev) => (prev?.id === data.session?.user?.id ? prev : data.session?.user || null));
-      setAuthReady(true);
-      if (data.session) void refresh();
-      else if (new URLSearchParams(location.search).has("share")) {
-        setSharedView(true);
-        setTimeout(() => void refresh(), 0);
-      }
+      },
     });
     return () => {
       cancelAnimationFrame(frame);
-      subscription.unsubscribe();
+      unsubscribe();
+      userRef.current = null;
     };
   }, [refresh]);
   useEffect(() => {

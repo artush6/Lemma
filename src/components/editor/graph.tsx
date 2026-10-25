@@ -7,16 +7,12 @@ import { graphLatex, splitGraphExpressions } from "./graphLatex";
 import katex from "katex";
 import { createPortal } from "react-dom";
 import { create, all } from "mathjs";
-import * as functionPlotModule from "function-plot";
+import { mountPlot } from "./plotLifecycle";
 import { Eye, EyeOff, Plus, RotateCcw, Spline, X } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 
-const functionPlot =
-  (functionPlotModule as any).default?.default ??
-  (functionPlotModule as any).default ??
-  functionPlotModule;
 const math = create(all, {});
 export const graphColors = ["#2f6fdd", "#e0523f", "#2f9e6b", "#8b5cf6", "#d9822b", "#1597a8"];
 
@@ -279,9 +275,9 @@ export function GraphView({ node, updateAttributes, selected, editor }: NodeView
       const mid = yDomain ? (yDomain[0] + yDomain[1]) / 2 : 0;
       yDomain = [mid - span / 2, mid + span / 2];
     }
+    let dispose = () => el.replaceChildren();
     try {
-      functionPlot({
-        target: el,
+      dispose = mountPlot(el, {
         width,
         height,
         grid: opts.grid,
@@ -303,7 +299,7 @@ export function GraphView({ node, updateAttributes, selected, editor }: NodeView
       err.textContent = "Could not plot these expressions.";
       el.append(err);
     }
-    return () => el.replaceChildren();
+    return dispose;
   }, [
     JSON.stringify(parsed.map((p) => [p.fn, p.kind, p.error])),
     hidden.join(","),

@@ -4,6 +4,31 @@ One dated section per commit, newest first. Changes belonging to the same commit
 
 The older per-file entries below were consolidated by their actual commits. Their detailed evidence and historical limitations are retained. Git history remains the source of the exact diff.
 
+<a id="branch-consolidation"></a>
+
+## 2026-10-25 — Consolidate branches and preserve legacy fixes
+
+All feature tips except the old Next.js redesign were already ancestors of master, so merging them again would add no code. Reviewed the unique `0009b32` redesign commit and selectively adapted useful behavior to the current TanStack editor. The original snapshot, docs and legacy browser harnesses are preserved by annotated tag `archive/editor-redesign-wip-2026-10-25`; its old framework, CSS and page-navigation implementation do not replace newer workspace behavior.
+
+### Behavior and implementation
+
+- Editor startup now uses Supabase INITIAL_SESSION once. Previously both getSession and the auth subscription loaded notes, and token renewals/repeated sign-ins could refresh the open document. `editorSession.ts` updates the owner ref synchronously, defers loading outside Supabase's callback/session lock, skips same-owner reloads and cancels scheduled work on sign-out/disposal. The stable refresh callback captures an owner ID and discards stale results at async boundaries. Workspace's separate session gate remains unchanged.
+- Offline recovery now honors the existing note/page/read query parameters, rather than falling back to the first cached note/page in the standalone editor. Existing workspace-selected note identity still takes priority. No note JSON, draft keys, database policy or schema changes were introduced.
+- `plotLifecycle.ts` owns the real function-plot Chart before build, removes chart listeners and its matching global cache entry on redraw/unmount, and cleans up after a failed build. The current renderer and plot options remain; the old branch's alternative SVG renderer is not substituted. Clearing SVG elements alone previously left chart objects reachable in the library cache. This fixes that specific retention path, without claiming a total browser/process-memory result.
+- Retired the redundant local feature branches and four origin feature branches, retaining master for active integration. Publication uses one atomic push for master, the archive tag and remote branch deletions, without force pushing. The [branch record](docs/engineering/BRANCHES.md) lists original tips, resolution and recovery commands. GitHub reported no open PRs, master as default, and no protection on retired branches; external deployment dashboard settings remain unverified.
+
+### Verification
+
+- `npm test`: 71 tests passed across 17 files, including five auth-event regressions and two real-library graph lifecycle regressions. These cover repeated same-account events, rapid account changes, pending-load cancellation, anonymous shared-link startup, 20 graph render/dispose cycles and failed-build isolation.
+- `npm run typecheck` and `npm run check:unused` passed (101 source modules / 24 entrypoints and tests). Focused lint for all four new helper/test modules passed. Production build with dummy public Supabase values passed; existing bundle-size warning remains.
+- Local Playwright browser fixture: twenty redraws left one cached chart and one SVG; clearing left zero of each. The fixture loads the production plot helper and real function-plot library, not a live account or full workspace. Screenshot remains local at output/playwright/branch-consolidation-graph.png. The first generic fixture config scanned unrelated TanStack server modules and failed; restricting dependency scanning to the graph fixture resolved that harness issue.
+- Full lint reports 31 existing errors / 18 warnings, down from 33 errors before the port (obsolete any casts were removed with the plot wrapper). No lint rule was weakened. Live auth, cloud persistence/share/history, deployed RLS and deployment success were not tested. Hosted CI may run on publication and is separate from these local results.
+- `npm run format:check` and `git diff --check` passed after updating the consolidation record and project profile.
+
+### Compatibility and rollback
+
+No dependencies, route formats, document geometry or stored-data formats changed. No database/account operation or history rewrite was performed. To undo behavior changes, make a new revert commit; do not reset/force-push master. Recreate a retired branch from its recorded tip or the redesign archive tag when needed. Repository cleanup was committed separately as [6f1519f](https://github.com/artush6/Lemma/commit/6f1519f), with its own section below.
+
 <a id="repository-cleanup"></a>
 
 ## 2026-10-25 — Repository cleanup, branch inventory and maintenance checks
