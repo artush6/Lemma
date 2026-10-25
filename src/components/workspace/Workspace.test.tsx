@@ -4,10 +4,13 @@ import { initialLayout, openResource } from "./model";
 import { StudyWorkspace } from "./Workspace";
 const mount = vi.hoisted(() => vi.fn());
 vi.mock("../editor/Editor", () => ({
-  default: ({ workspace }: { workspace: { noteId?: string } }) => {
+  default: ({ workspace }: { workspace: { noteId?: string; onFocus: () => void } }) => {
     mount(workspace.noteId);
     return (
-      <textarea aria-label={`Editor ${workspace.noteId || "library"}`} defaultValue="Original" />
+      <>
+        <button onClick={workspace.onFocus}>Focus editor</button>
+        <textarea aria-label={`Editor ${workspace.noteId || "library"}`} defaultValue="Original" />
+      </>
     );
   },
 }));
@@ -37,6 +40,56 @@ const seed = () => {
   localStorage.setItem("lemma:test:workspace:v1", JSON.stringify(state));
 };
 describe("workspace views", () => {
+  it("keeps tabs available on note links and provides a shared toggle across spaces", async () => {
+    seed();
+    window.history.replaceState(null, "", "/?note=a");
+    render(<StudyWorkspace owner="test" />);
+    expect(screen.getByRole("tab", { name: "Note", selected: true })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Tab bar" }));
+    expect(screen.queryByRole("tablist", { name: "left pane tabs" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Tab bar" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    fireEvent.keyDown(
+      within(screen.getByRole("tablist", { name: "Spaces" })).getByRole("tab", {
+        name: "Code Lab",
+      }),
+      { key: "Enter" },
+    );
+    expect(await screen.findByText("Code lab content")).toBeVisible();
+    expect(screen.getByRole("tablist", { name: "left pane tabs" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Tab bar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tab bar" }));
+    fireEvent.keyDown(
+      within(screen.getByRole("tablist", { name: "Spaces" })).getByRole("tab", {
+        name: "Flashcards",
+      }),
+      { key: "Enter" },
+    );
+    expect(await screen.findByText("Flashcard content")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Tab bar" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Tab bar" }));
+    fireEvent.keyDown(
+      within(screen.getByRole("tablist", { name: "Spaces" })).getByRole("tab", { name: "Notes" }),
+      { key: "Enter" },
+    );
+    expect(screen.getByRole("tab", { name: "Note", selected: true })).toBeVisible();
+  });
+  it("restores the tab bar from focus mode without remounting the note", async () => {
+    window.history.replaceState(null, "", "/?note=a");
+    render(<StudyWorkspace owner="test" />);
+    const editor = await screen.findByLabelText("Editor a");
+    fireEvent.click(screen.getByRole("button", { name: "Focus editor" }));
+    expect(screen.queryByRole("tablist")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Show tab bar/ }));
+    expect(screen.getByRole("tablist", { name: "left pane tabs" })).toBeVisible();
+    expect(screen.getByLabelText("Editor a")).toBe(editor);
+    fireEvent.click(screen.getByRole("button", { name: "Tab bar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Focus editor" }));
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByRole("tablist", { name: "left pane tabs" })).toBeVisible();
+  });
   it("preserves unsaved view state across switching, closing and reopening a tab", async () => {
     seed();
     render(<StudyWorkspace owner="test" />);

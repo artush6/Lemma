@@ -10535,7 +10535,7 @@ html body .study-workspace.lemma-app {
   height: 100dvh;
   width: 100%;
   padding: 0;
-  overflow: hidden;
+  overflow: clip;
   background: var(--paper);
   color: var(--ink);
   position: relative;
@@ -10549,6 +10549,7 @@ html body .study-workspace.lemma-app {
   outline-offset: -2px;
 }
 .workspace-header {
+  flex-shrink: 0;
   height: 52px;
   min-height: 52px;
   border-bottom: 1px solid var(--line);
@@ -10580,6 +10581,11 @@ html body .study-workspace.lemma-app {
   color: var(--muted);
   background: transparent;
   border: 0;
+}
+.workspace-header-tools button:hover,
+.workspace-header-tools button[aria-pressed="true"] {
+  background: var(--hover);
+  color: var(--ink);
 }
 .workspace-brand {
   font-family: Georgia, serif;
@@ -10646,6 +10652,12 @@ html body .study-workspace .workspace-editor-header .top-actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: 42px minmax(0, 1fr);
+}
+.workspace-grid.workspace-tabs-hidden {
+  grid-template-rows: 0 minmax(0, 1fr);
+}
+.workspace-grid.is-split.orientation-vertical.workspace-tabs-hidden {
+  grid-template-rows: 0 minmax(0, var(--split-ratio)) 5px 0 minmax(0, 1fr);
 }
 .workspace-grid.is-split.orientation-horizontal {
   grid-template-columns: minmax(0, var(--split-ratio)) 5px minmax(0, 1fr);
@@ -11014,6 +11026,9 @@ html body .study-workspace .workspace-mirror .reference-pane {
   display: none;
 }
 .workspace-exit-focus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   position: fixed;
   right: 16px;
   top: 12px;
@@ -11414,8 +11429,8 @@ html body .study-workspace .workspace-header > .space-navigation {
   color: var(--muted);
 }
 .workspace-note-breadcrumb {
-  left: 44px;
-  width: calc(50% - 225px);
+  left: 84px;
+  width: calc(50% - 265px);
 }
 html body .study-workspace .workspace-note-breadcrumb button {
   display: flex;

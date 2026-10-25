@@ -4,6 +4,22 @@ One dated section per commit, newest first. Changes belonging to the same commit
 
 The older per-file entries below were consolidated by their actual commits. Their detailed evidence and historical limitations are retained. Git history remains the source of the exact diff.
 
+<a id="tab-bar-access"></a>
+
+## 2026-10-25 — Keep workspace tabs accessible and simplify PDF previews
+
+Opening a note should leave workspace navigation accessible. The shell now clips outer overflow so browser focus scrolling cannot scroll the entire workspace away from its navigation; scrolling stays in the existing content panes. Opening a resource exits workspace focus and restores the tab rows. The header retains its height instead of shrinking.
+
+A **Tab bar** button next to Library shows/hides the tab rows in every space: Notes, Code Lab, Flashcards and documents. Its pressed state and tooltip indicate visibility. Visibility starts enabled and is session-only; no preference or stored-layout migration is needed. Focus mode offers **Show tab bar**, and Escape restores tabs too. Both split orientations collapse hidden tab rows while retaining mounted editors, selection and unsaved view state. The note breadcrumb shifts to make room for the button; controls remain outside the printable canvas and reuse existing tokens/icons.
+
+PDF previews no longer add the redundant **Download filename.pdf** footer shown beneath the viewer. This applies to inline note attachments and full workspace PDF tabs. Office/text attachments keep their download links, and the reference pane's existing header download remains available. No note bytes, attachment storage, history/share links, dependencies, auth or database rules change.
+
+Verification: `npm test` passed all 73 tests in 17 files, including regressions for direct note links, the shared toggle across spaces, focus recovery and retaining the mounted note. `npm run typecheck`, `npm run check:unused` (101 modules / 24 roots) and `npm run build` passed. Focused ESLint on Workspace, its test and attachments has zero errors and two existing Fast Refresh export warnings in attachments. Build retains existing chunk-size and framework deprecation warnings. Changed-file Prettier and `git diff --check` pass.
+
+Browser checks used the production workspace/components with synthetic notes and a local auth/repository stub, at a narrow desktop-panel width and an embedded 390px viewport. Opening from Library, tab hide/show, focus recovery, and shared controls in Flashcards/Code Lab were exercised. A separate attachment fixture confirmed the PDF iframe has no download footer while an Office file retains its download link. The original live-account disappearance was not reproduced; the shell scroll boundary and explicit recovery paths address the observed code risks. Live cloud/auth/share/history, full desktop/vertical-split visual checks, native PDF page rendering, screen readers, print output and hosted deployment remain unverified.
+
+Rollback: revert this commit normally to restore the previous UI; no data rollback is required. Do not reset or force-push published master history.
+
 <a id="branch-consolidation"></a>
 
 ## 2026-10-25 — Consolidate branches and preserve legacy fixes

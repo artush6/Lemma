@@ -22,6 +22,7 @@ import {
   Columns2,
   Focus,
   ArrowLeftRight,
+  PanelTop,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { newNote, repository, type Note } from "@/lib/notes";
@@ -204,6 +205,7 @@ export function StudyWorkspace({ owner }: { owner: string }) {
   const [files, setFiles] = useState<Record<string, Attachment>>({});
   const [headerHost, setHeaderHost] = useState<HTMLDivElement | null>(null);
   const [focus, setFocus] = useState(false);
+  const [tabsVisible, setTabsVisible] = useState(true);
   const [dark, setDark] = useState(document.documentElement.classList.contains("dark"));
   const [narrow, setNarrow] = useState(window.innerWidth < 900);
   const [picker, setPicker] = useState<{ pane: PaneId; type: "all" } | null>(null);
@@ -243,16 +245,19 @@ export function StudyWorkspace({ owner }: { owner: string }) {
           },
     );
   }, []);
-  const open = useCallback(
-    (resource: Resource, pane?: PaneId) => setLayout((old) => openResource(old, resource, pane)),
-    [],
-  );
+  const open = useCallback((resource: Resource, pane?: PaneId) => {
+    setFocus(false);
+    setTabsVisible(true);
+    setLayout((old) => openResource(old, resource, pane));
+  }, []);
   const openNote = (note: Note, pane?: PaneId) =>
     open(
       { id: `note:${note.id}`, kind: "note", noteId: note.id, title: note.title || "Untitled" },
       pane,
     );
   const openSpace = (next: Space) => {
+    setFocus(false);
+    setTabsVisible(true);
     if (next === "notes") {
       const state = stateRef.current;
       const id = state.panes[state.activePane].tabs.find(
@@ -361,6 +366,7 @@ export function StudyWorkspace({ owner }: { owner: string }) {
       const pane = layout.activePane,
         current = layout.panes[pane];
       if (event.key === "Escape") {
+        if (focus) setTabsVisible(true);
         setFocus(false);
         setPicker(null);
       }
@@ -617,6 +623,14 @@ export function StudyWorkspace({ owner }: { owner: string }) {
           >
             <Home size={17} />
           </button>
+          <button
+            title={tabsVisible ? "Hide tab bar" : "Show tab bar"}
+            aria-label="Tab bar"
+            aria-pressed={tabsVisible}
+            onClick={() => setTabsVisible((visible) => !visible)}
+          >
+            <PanelTop size={17} />
+          </button>
           <span className="workspace-brand">Lemma</span>
         </div>
         <div ref={setHeaderHost} className="workspace-editor-header" />
@@ -632,8 +646,14 @@ export function StudyWorkspace({ owner }: { owner: string }) {
         )}
       </header>
       {focus && (
-        <button className="workspace-exit-focus" onClick={() => setFocus(false)}>
-          Restore workspace <kbd>Esc</kbd>
+        <button
+          className="workspace-exit-focus"
+          onClick={() => {
+            setFocus(false);
+            setTabsVisible(true);
+          }}
+        >
+          <PanelTop size={16} /> Show tab bar <kbd>Esc</kbd>
         </button>
       )}
       {error && (
@@ -654,11 +674,15 @@ export function StudyWorkspace({ owner }: { owner: string }) {
       )}
       <div
         ref={grid}
-        className={`workspace-grid ${layout.split && !narrow && !focus ? "is-split" : ""} orientation-${layout.orientation}`}
+        className={`workspace-grid ${layout.split && !narrow && !focus ? "is-split" : ""} orientation-${layout.orientation} ${!tabsVisible && !focus ? "workspace-tabs-hidden" : ""}`}
         style={{ "--split-ratio": `${layout.ratio}%` } as CSSProperties}
       >
         {visiblePanes.map((pane) => (
-          <section key={pane} className={`workspace-pane-header pane-${pane}`} hidden={focus}>
+          <section
+            key={pane}
+            className={`workspace-pane-header pane-${pane}`}
+            hidden={focus || !tabsVisible}
+          >
             <div
               role="tablist"
               aria-label={`${pane} pane tabs`}

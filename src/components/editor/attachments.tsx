@@ -43,7 +43,7 @@ export async function readAttachment(file: File): Promise<JSONContent> {
 }
 export function AttachmentPreview({
   attachment,
-  showDownload = true,
+  showDownload = attachment.mime !== "application/pdf",
 }: {
   attachment: Attachment;
   showDownload?: boolean;
