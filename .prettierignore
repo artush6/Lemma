@@ -9,3 +9,9 @@ routeTree.gen.ts
 .vercel
 .nitro
 .tanstack
+
+# Local verification artifacts and generated build output
+output
+.playwright-cli
+dist-ssr
+.next
