@@ -4,6 +4,22 @@ One dated section per commit, newest first. Changes belonging to the same commit
 
 The older per-file entries below were consolidated by their actual commits. Their detailed evidence and historical limitations are retained. Git history remains the source of the exact diff.
 
+<a id="split-sidebars"></a>
+
+## 2026-10-26 — Keep navigation sidebars available on both sides of a split
+
+Note views previously initialized their sidebar closed, and responsive workspace CSS prevented reopening it. Sidebar visibility now belongs to each side of the workspace, rather than to each mounted editor. Desktop views start with navigation visible; opening or switching notes preserves the side's current choice. At narrow widths navigation starts closed and can be opened as a side overlay with a dismiss backdrop. Read mode also retains workspace navigation.
+
+- The sidebar button next to Library controls the active side, and each tab row has its own labeled sidebar button. Both sidebars can remain open together; changing one does not affect the other, resize the split, close tabs or discard the mounted editor. Code Lab files and Flashcards decks use the same side-specific visibility and remain side rails in split views wider than 480px.
+- PDF/file views, empty split sides and mirrored views now have library navigation using the shared NoteIcon and Button primitives. Search and folder grouping expose existing notes; New note, All notes and note selection target that same side. Opening a note beside a PDF leaves the PDF tab available and the other side unchanged. File navigation reads the existing owner-scoped notes/folders repository; no schema, stored note/layout format, dependency or authorization change is introduced.
+- Removes the tab-bar visibility toggle and automatic tab/focus restoration introduced in [7b5087f](https://github.com/artush6/Lemma/commit/7b5087f). The PDF download-footer removal from that commit remains. Existing split, focus, tab and attachment-storage behavior otherwise continues, with no pane-hiding feature added.
+
+Verification: `npm test` passed 75 tests in 17 files. Regressions cover desktop/narrow sidebar access, controls across study spaces, independent split visibility, retained draft/editor identity and note navigation from the PDF side. `npm run typecheck`, focused ESLint for Workspace/FileSidebar/the workspace test, and the production build passed. Editor lint retains its existing 15 errors / 2 warnings; no rules were weakened. Reachability found all 102 source modules reachable from 24 roots. Changed-file Prettier and `git diff --check` passed. Build retains existing chunk-size/framework warnings.
+
+Browser verification used production components with local synthetic notes, a PDF attachment fixture and stubbed auth/repository methods. At 1280px both sidebars remained alongside their content; changing the left sidebar preserved the right, and choosing a note beside the PDF opened it on the left while keeping the PDF tab. At an embedded 390px viewport, note and Flashcards sidebars opened as side overlays, and dismissing the study sidebar preserved its content. Screenshot: local `output/playwright/independent-sidebars.png`. Native PDF page rendering, live auth/cloud/history/shares, physical touch, screen readers, print output and deployment remain unverified. Vertical splits are covered by the unchanged grid model, not a new browser claim.
+
+Rollback: make a normal revert commit; this change needs no data rollback. Published master history must not be rewritten.
+
 <a id="tab-bar-access"></a>
 
 ## 2026-10-25 — Keep workspace tabs accessible and simplify PDF previews

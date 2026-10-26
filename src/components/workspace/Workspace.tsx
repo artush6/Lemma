@@ -22,10 +22,10 @@ import {
   Columns2,
   Focus,
   ArrowLeftRight,
-  PanelTop,
+  PanelLeft,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { newNote, repository, type Note } from "@/lib/notes";
+import { newNote, repository, type Note, type Folder } from "@/lib/notes";
 import { draftStorage } from "@/lib/draftStorage";
 import AuthScreen from "@/components/auth/AuthScreen";
 import Editor from "../editor/Editor";
@@ -65,6 +65,7 @@ import {
   type Resource,
   type PaneId,
 } from "./model";
+import { FileSidebar } from "./FileSidebar";
 import { getAttachment, storeAttachment } from "./attachmentStore";
 const CodeLab = lazy(() => import("../spaces/CodeLab"));
 const Flashcards = lazy(() => import("../spaces/Flashcards"));
@@ -72,6 +73,8 @@ const dragType = "application/x-lemma-workspace";
 export type EmbeddedWorkspace = {
   noteId?: string | undefined;
   active: boolean;
+  sidebarOpen: boolean;
+  onSidebarChange: (open: boolean) => void;
   headerHost: HTMLElement | null;
   onOpen: (note: Note) => void;
   onChange: (note: Note) => void;
@@ -202,10 +205,16 @@ export function StudyWorkspace({ owner }: { owner: string }) {
     return state;
   });
   const [notes, setNotes] = useState<Note[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
   const [files, setFiles] = useState<Record<string, Attachment>>({});
   const [headerHost, setHeaderHost] = useState<HTMLDivElement | null>(null);
   const [focus, setFocus] = useState(false);
-  const [tabsVisible, setTabsVisible] = useState(true);
+  const [sidebars, setSidebars] = useState<Record<PaneId, boolean>>(() => ({
+    left: window.innerWidth > 700,
+    right: window.innerWidth > 700,
+  }));
+  const setSidebarOpen = (pane: PaneId, open: boolean) =>
+    setSidebars((previous) => ({ ...previous, [pane]: open }));
   const [dark, setDark] = useState(document.documentElement.classList.contains("dark"));
   const [narrow, setNarrow] = useState(window.innerWidth < 900);
   const [picker, setPicker] = useState<{ pane: PaneId; type: "all" } | null>(null);
@@ -245,19 +254,16 @@ export function StudyWorkspace({ owner }: { owner: string }) {
           },
     );
   }, []);
-  const open = useCallback((resource: Resource, pane?: PaneId) => {
-    setFocus(false);
-    setTabsVisible(true);
-    setLayout((old) => openResource(old, resource, pane));
-  }, []);
+  const open = useCallback(
+    (resource: Resource, pane?: PaneId) => setLayout((old) => openResource(old, resource, pane)),
+    [],
+  );
   const openNote = (note: Note, pane?: PaneId) =>
     open(
       { id: `note:${note.id}`, kind: "note", noteId: note.id, title: note.title || "Untitled" },
       pane,
     );
   const openSpace = (next: Space) => {
-    setFocus(false);
-    setTabsVisible(true);
     if (next === "notes") {
       const state = stateRef.current;
       const id = state.panes[state.activePane].tabs.find(
@@ -297,6 +303,14 @@ export function StudyWorkspace({ owner }: { owner: string }) {
           setError(
             "Could not refresh the note picker. Open notes and recovery drafts remain available.",
           );
+      });
+    void repository
+      .listFolders()
+      .then((list) => {
+        if (alive) setFolders(list);
+      })
+      .catch(() => {
+        if (alive) setError("Could not refresh folders. Your open documents remain available.");
       });
     const observer = new MutationObserver(() =>
       setDark(document.documentElement.classList.contains("dark")),
@@ -366,7 +380,6 @@ export function StudyWorkspace({ owner }: { owner: string }) {
       const pane = layout.activePane,
         current = layout.panes[pane];
       if (event.key === "Escape") {
-        if (focus) setTabsVisible(true);
         setFocus(false);
         setPicker(null);
       }
@@ -610,6 +623,17 @@ export function StudyWorkspace({ owner }: { owner: string }) {
       </DropdownMenuContent>
     </DropdownMenu>
   );
+  const fileSidebar = (pane: PaneId) =>
+    sidebars[pane] && !focus ? (
+      <FileSidebar
+        notes={notes}
+        folders={folders}
+        onOpen={(note) => openNote(note, pane)}
+        onLibrary={() => open({ id: "library", kind: "library", title: "Library" }, pane)}
+        onCreate={() => void create(pane)}
+        onClose={() => setSidebarOpen(pane, false)}
+      />
+    ) : null;
   return (
     <div
       className={`study-workspace lemma-app ${dark ? "dark" : ""} ${focus ? "workspace-focus" : ""}`}
@@ -624,12 +648,12 @@ export function StudyWorkspace({ owner }: { owner: string }) {
             <Home size={17} />
           </button>
           <button
-            title={tabsVisible ? "Hide tab bar" : "Show tab bar"}
-            aria-label="Tab bar"
-            aria-pressed={tabsVisible}
-            onClick={() => setTabsVisible((visible) => !visible)}
+            title={sidebars[layout.activePane] ? "Hide sidebar" : "Show sidebar"}
+            aria-label="Sidebar"
+            aria-pressed={sidebars[layout.activePane]}
+            onClick={() => setSidebarOpen(layout.activePane, !sidebars[layout.activePane])}
           >
-            <PanelTop size={17} />
+            <PanelLeft size={17} />
           </button>
           <span className="workspace-brand">Lemma</span>
         </div>
@@ -646,14 +670,8 @@ export function StudyWorkspace({ owner }: { owner: string }) {
         )}
       </header>
       {focus && (
-        <button
-          className="workspace-exit-focus"
-          onClick={() => {
-            setFocus(false);
-            setTabsVisible(true);
-          }}
-        >
-          <PanelTop size={16} /> Show tab bar <kbd>Esc</kbd>
+        <button className="workspace-exit-focus" onClick={() => setFocus(false)}>
+          Restore workspace <kbd>Esc</kbd>
         </button>
       )}
       {error && (
@@ -674,15 +692,20 @@ export function StudyWorkspace({ owner }: { owner: string }) {
       )}
       <div
         ref={grid}
-        className={`workspace-grid ${layout.split && !narrow && !focus ? "is-split" : ""} orientation-${layout.orientation} ${!tabsVisible && !focus ? "workspace-tabs-hidden" : ""}`}
+        className={`workspace-grid ${layout.split && !narrow && !focus ? "is-split" : ""} orientation-${layout.orientation}`}
         style={{ "--split-ratio": `${layout.ratio}%` } as CSSProperties}
       >
         {visiblePanes.map((pane) => (
-          <section
-            key={pane}
-            className={`workspace-pane-header pane-${pane}`}
-            hidden={focus || !tabsVisible}
-          >
+          <section key={pane} className={`workspace-pane-header pane-${pane}`} hidden={focus}>
+            <button
+              className="workspace-sidebar-toggle"
+              aria-label={`${pane} sidebar`}
+              aria-pressed={sidebars[pane]}
+              title={`${sidebars[pane] ? "Hide" : "Show"} sidebar on the ${pane}`}
+              onClick={() => setSidebarOpen(pane, !sidebars[pane])}
+            >
+              <PanelLeft size={16} />
+            </button>
             <div
               role="tablist"
               aria-label={`${pane} pane tabs`}
@@ -874,12 +897,16 @@ export function StudyWorkspace({ owner }: { owner: string }) {
             const containing = visiblePanes.filter((p) => layout.panes[p].active === resource.id);
             const pane = containing.includes(layout.activePane) ? layout.activePane : containing[0];
             const visible = !!pane;
+            const resourcePane =
+              pane || (layout.panes.right.tabs.includes(resource.id) ? "right" : "left");
             // One live editing instance per identity. A second visible view is a read-only mirror below.
             const embedded: EmbeddedWorkspace = {
+              sidebarOpen: sidebars[resourcePane],
+              onSidebarChange: (open) => setSidebarOpen(resourcePane, open),
               noteId: resource.kind === "note" ? resource.noteId : undefined,
               active: visible && pane === layout.activePane,
               headerHost,
-              onOpen: (note) => openNote(note),
+              onOpen: (note) => openNote(note, resourcePane),
               onChange: updateNote,
               externalNote:
                 resource.kind === "note" ? notes.find((n) => n.id === resource.noteId) : undefined,
@@ -893,8 +920,9 @@ export function StudyWorkspace({ owner }: { owner: string }) {
                 setRetained((old) => old.filter((r) => r.id !== resourceId));
                 setNotes((old) => old.filter((n) => n.id !== id));
               },
-              onLibrary: () => open({ id: "library", kind: "library", title: "Library" }),
-              onCreate: (folder) => void create(layout.activePane, folder),
+              onLibrary: () =>
+                open({ id: "library", kind: "library", title: "Library" }, resourcePane),
+              onCreate: (folder) => void create(resourcePane, folder),
               onSpace: openSpace,
               onFocus: () => setFocus((v) => !v),
               onDragNote: startNoteDrag,
@@ -906,13 +934,22 @@ export function StudyWorkspace({ owner }: { owner: string }) {
                 data-active={visible && pane === layout.activePane}
                 id={`panel-${pane || "closed"}-${resource.id}`}
                 aria-labelledby={pane ? `tab-${pane}-${resource.id}` : undefined}
-                className={`workspace-resource pane-${pane || "left"}`}
+                className={`workspace-resource ${sidebars[resourcePane] ? "" : "sidebar-hidden"} pane-${pane || "left"}`}
                 hidden={!visible}
                 onPointerDownCapture={() => {
                   if (pane && pane !== layout.activePane)
                     setLayout((s) => ({ ...s, activePane: pane }));
                 }}
               >
+                {(resource.kind === "code" || resource.kind === "cards") &&
+                  sidebars[resourcePane] &&
+                  !focus && (
+                    <button
+                      className="workspace-tool-sidebar-dismiss"
+                      aria-label="Close study sidebar"
+                      onClick={() => setSidebarOpen(resourcePane, false)}
+                    />
+                  )}
                 <Suspense fallback={<p role="status">Loading workspace…</p>}>
                   {resource.kind === "note" || resource.kind === "library" ? (
                     <Editor workspace={embedded} />
@@ -925,11 +962,14 @@ export function StudyWorkspace({ owner }: { owner: string }) {
                   ) : resource.kind === "cards" ? (
                     <Flashcards ownerId={owner} active={visible && pane === layout.activePane} />
                   ) : (
-                    <FileView
-                      resource={resource as Extract<Resource, { kind: "attachment" }>}
-                      owner={owner}
-                      cached={files[resource.id]}
-                    />
+                    <div className="lemma-app workspace-file-layout">
+                      {fileSidebar(resourcePane)}
+                      <FileView
+                        resource={resource as Extract<Resource, { kind: "attachment" }>}
+                        owner={owner}
+                        cached={files[resource.id]}
+                      />
+                    </div>
                   )}
                 </Suspense>
               </div>
@@ -946,44 +986,49 @@ export function StudyWorkspace({ owner }: { owner: string }) {
                 className={`workspace-resource workspace-mirror pane-${pane}`}
                 onPointerDownCapture={() => setLayout((s) => ({ ...s, activePane: pane }))}
               >
-                {resource.kind === "note" ? (
-                  <>
-                    <div className="workspace-mirror-label">
-                      Live read-only view · Edit in the other pane
+                {fileSidebar(pane)}
+                <div className="workspace-mirror-body">
+                  {resource.kind === "note" ? (
+                    <>
+                      <div className="workspace-mirror-label">
+                        Live read-only view · Edit in the other pane
+                      </div>
+                      <ReferencePane
+                        notes={notes}
+                        selected={resource.noteId}
+                        attachment={null}
+                        onSelect={() => {}}
+                        onAttachment={() => {}}
+                        onClose={() => {}}
+                        side="right"
+                        onSide={() => {}}
+                      />
+                    </>
+                  ) : (
+                    <div className="workspace-empty">
+                      <p>This tool is already open in the other pane.</p>
+                      <button
+                        onClick={() => setLayout((s) => ({ ...s, activePane: opposite(pane) }))}
+                      >
+                        Go to active view
+                      </button>
                     </div>
-                    <ReferencePane
-                      notes={notes}
-                      selected={resource.noteId}
-                      attachment={null}
-                      onSelect={() => {}}
-                      onAttachment={() => {}}
-                      onClose={() => {}}
-                      side="right"
-                      onSide={() => {}}
-                    />
-                  </>
-                ) : (
-                  <div className="workspace-empty">
-                    <p>This tool is already open in the other pane.</p>
-                    <button
-                      onClick={() => setLayout((s) => ({ ...s, activePane: opposite(pane) }))}
-                    >
-                      Go to active view
-                    </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             );
           if (!id)
             return (
-              <div
-                key={`empty-${pane}`}
-                className={`workspace-resource workspace-empty pane-${pane}`}
-              >
-                <Columns2 size={28} />
-                <h2>Your space to study</h2>
-                <p>Drop a tab here or open a note, PDF or study tool.</p>
-                {menu(pane)}
+              <div key={`empty-${pane}`} className={`workspace-resource pane-${pane}`}>
+                <div className="lemma-app workspace-file-layout">
+                  {fileSidebar(pane)}
+                  <div className="workspace-empty workspace-mirror-body">
+                    <Columns2 size={28} />
+                    <h2>Your space to study</h2>
+                    <p>Drop a tab here or open a note, PDF or study tool.</p>
+                    {menu(pane)}
+                  </div>
+                </div>
               </div>
             );
           return null;

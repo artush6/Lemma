@@ -259,7 +259,7 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
     [shareError, setShareError] = useState(""),
     [saved, setSaved] = useState<"saved" | "saving" | "offline">("saved"),
     [search, setSearch] = useState(""),
-    [sidebar, setSidebar] = useState(!workspace?.noteId),
+    [standaloneSidebar, setStandaloneSidebar] = useState(true),
     [menu, setMenu] = useState(false),
     [exportOpen, setExportOpen] = useState(false),
     [preview, setPreview] = useState(false),
@@ -285,6 +285,13 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
     [fontFamily, setFontFamily] = useState("sans"),
     [fontSize, setFontSize] = useState(16),
     [demoMode, setDemoMode] = useState(false);
+  const sidebar = workspace ? workspace.sidebarOpen : standaloneSidebar;
+  const setSidebar = (value: boolean | ((open: boolean) => boolean)) => {
+    if (workspaceRef.current) {
+      const current = workspaceRef.current;
+      current.onSidebarChange(typeof value === "function" ? value(current.sidebarOpen) : value);
+    } else setStandaloneSidebar(value);
+  };
   const [space, setSpace] = useState<Space>(() => {
     if (typeof location === "undefined") return "notes";
     const params = new URLSearchParams(location.search);
@@ -765,7 +772,8 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
   ]);
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      setSidebar(!workspaceRef.current?.noteId && !window.matchMedia("(max-width: 700px)").matches);
+      if (!workspaceRef.current)
+        setStandaloneSidebar(!window.matchMedia("(max-width: 700px)").matches);
       const storedTheme = localStorage.getItem("lemma:theme");
       const initialTheme =
         storedTheme === "light" || storedTheme === "dark" || storedTheme === "system"
@@ -2315,8 +2323,8 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
       }
     >
       {switcher}
-      {!preview && !focus && sidebarDismiss}
-      {sidebar && !preview && !focus && (
+      {(!preview || workspace) && !focus && sidebarDismiss}
+      {sidebar && (!preview || workspace) && !focus && (
         <aside className="sidebar">
           <div className="brand">
             <Button variant="ghost" className="brand-button" onClick={() => showLibrary()}>
