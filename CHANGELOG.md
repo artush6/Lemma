@@ -4,6 +4,18 @@ One dated section per commit, newest first. Changes belonging to the same commit
 
 The older per-file entries below were consolidated by their actual commits. Their detailed evidence and historical limitations are retained. Git history remains the source of the exact diff.
 
+<a id="shared-left-sidebar"></a>
+
+## 2026-10-26 — Use one sidebar at the far left of the workspace
+
+The navigation sidebar now sits before the entire split grid, so opening it displays one sidebar at the workspace's far-left edge. The per-side sidebar buttons and visibility state from [743fb2e](https://github.com/artush6/Lemma/commit/743fb2e) are removed. The single Sidebar button next to Library controls it in every space; both split views keep their content and tab state.
+
+`SidebarPortal.tsx` mounts the active note/library navigation, Code Lab file/dataset rail or Flashcards deck rail into one workspace-owned host. Existing controls and their callbacks are reused instead of duplicating navigation. Inactive views do not mount additional sidebars. PDF/empty views use FileSidebar in that same host, targeting the active side when opening a note. Note sidebar-width preferences still size the native sidebar. Standalone study-tool/editor usage retains its inline navigation. At mobile widths the one sidebar is a dismissible overlay; print hides the host outside document geometry.
+
+Verification: 75 tests across 17 files passed, including a split regression asserting one sidebar outside both resources, removal of per-side controls, retained editor/draft identity, space switching and PDF navigation targeting. Type checking, focused lint on Workspace/SidebarPortal/FileSidebar/workspace tests/Code Lab/Flashcards, reachability (103 modules / 24 roots) and production build passed. Editor's known lint debt remains outside this formatting/portal change. Prettier and `git diff --check` passed. Existing build warnings remain.
+
+Local production-component browser fixtures at 1280px confirmed one sidebar at x=0, zero navigation sidebars inside resource views, Code Lab navigation in the shared host, and note selection on the active side. At an embedded 390px viewport, the shared note sidebar opened at the left edge and dismissed successfully. Local screenshot: `output/playwright/shared-left-sidebar.png`. Fixtures use synthetic notes and stubbed auth/repository methods. Live cloud/auth, native PDF rendering, screen readers, printed output and deployment remain unverified. No dependencies, SQL, note/layout storage shapes, attachment bytes or share/history contracts change. Roll back with a normal revert commit; no data rollback is needed.
+
 <a id="split-sidebars"></a>
 
 ## 2026-10-26 — Keep navigation sidebars available on both sides of a split

@@ -37,7 +37,6 @@ export function FileSidebar({
   );
   return (
     <>
-      <button className="sidebar-dismiss" aria-label="Close document sidebar" onClick={onClose} />
       <aside className="sidebar" aria-label="Document library">
         <div className="brand">
           <Button variant="ghost" className="brand-button" onClick={onLibrary}>

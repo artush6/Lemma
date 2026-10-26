@@ -1,3 +1,4 @@
+import { SidebarPortal } from "../workspace/SidebarPortal";
 import { ReferencePlacement } from "@/components/editor/ReferencePlacement";
 import { openDocumentWindow } from "@/components/editor/documentWindow";
 import { motion, useReducedMotion } from "framer-motion";
@@ -92,10 +93,12 @@ const ident = (s: string) =>
 
 export default function CodeLab({
   ownerId,
+  sidebarHost,
   dark = false,
   active: paneActive = true,
 }: {
   ownerId?: string;
+  sidebarHost?: HTMLElement | null;
   dark?: boolean;
   active?: boolean;
 }) {
@@ -289,141 +292,150 @@ export default function CodeLab({
       transition={{ duration: reducedMotion ? 0 : 0.18 }}
     >
       {dialogs}
-      <aside className="space-rail">
-        <div className="space-rail-head">
-          <span>Files</span>
-          <span className="rail-head-tools">
-            <Button variant="ghost" type="button" aria-label="New folder" onClick={addFolder}>
-              <FolderPlus size={15} />
-            </Button>
-            <Button
-              variant="ghost"
-              type="button"
-              aria-label="New file"
-              onClick={() => addSnippet(null)}
-            >
+      <SidebarPortal
+        host={sidebarHost}
+        visible={sidebarHost === undefined || (paneActive && !!sidebarHost)}
+      >
+        <aside className="space-rail">
+          <div className="space-rail-head">
+            <span>Files</span>
+            <span className="rail-head-tools">
+              <Button variant="ghost" type="button" aria-label="New folder" onClick={addFolder}>
+                <FolderPlus size={15} />
+              </Button>
+              <Button
+                variant="ghost"
+                type="button"
+                aria-label="New file"
+                onClick={() => addSnippet(null)}
+              >
+                <Plus size={15} />
+              </Button>
+            </span>
+          </div>
+          {codeFolders.map((f) => {
+            const open = !collapsed.has(f.id);
+            return (
+              <div key={f.id} className="rail-folder">
+                <div
+                  className="rail-item rail-folder-row"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return;
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      e.currentTarget.click();
+                    }
+                  }}
+                  onClick={() =>
+                    setCollapsed((c) => {
+                      const n = new Set(c);
+                      if (n.has(f.id)) n.delete(f.id);
+                      else n.add(f.id);
+                      return n;
+                    })
+                  }
+                  onDoubleClick={() => renameFolder(f)}
+                >
+                  <ChevronRight size={13} className={open ? "is-open" : ""} />
+                  <Folder size={15} />
+                  <span>{f.name}</span>
+                  <Button
+                    variant="ghost"
+                    type="button"
+                    aria-label="New file in folder"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      addSnippet(f.id);
+                    }}
+                  >
+                    <Plus size={13} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    type="button"
+                    aria-label="Delete folder"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeFolder(f);
+                    }}
+                  >
+                    <Trash2 size={13} />
+                  </Button>
+                </div>
+                {open && (
+                  <div className="rail-children">
+                    {snippets
+                      .filter((s) => s.folderId === f.id)
+                      .map((s: Snippet) => (
+                        <Button
+                          variant="ghost"
+                          type="button"
+                          key={s.id}
+                          className={`rail-item ${s.id === active.id && !editingData ? "is-active" : ""}`}
+                          onClick={() => {
+                            setActiveId(s.id);
+                            setTab("code");
+                            setResult(null);
+                          }}
+                        >
+                          <FileCode2 size={15} />
+                          <span>{s.name}</span>
+                          <em>
+                            {
+                              langs
+                                .find((l) => l.id === (s.lang || "javascript"))
+                                ?.ext.split(".")[1]
+                            }
+                          </em>
+                        </Button>
+                      ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {snippets
+            .filter((s) => !s.folderId || !codeFolders.some((f) => f.id === s.folderId))
+            .map((s: Snippet) => (
+              <Button
+                variant="ghost"
+                type="button"
+                key={s.id}
+                className={`rail-item ${s.id === active.id && !editingData ? "is-active" : ""}`}
+                onClick={() => {
+                  setActiveId(s.id);
+                  setTab("code");
+                  setResult(null);
+                }}
+              >
+                <FileCode2 size={15} />
+                <span>{s.name}</span>
+                <em>{langs.find((l) => l.id === (s.lang || "javascript"))?.ext.split(".")[1]}</em>
+              </Button>
+            ))}
+          <div className="space-rail-head">
+            <span>Datasets</span>
+            <Button variant="ghost" type="button" aria-label="New dataset" onClick={addDataset}>
               <Plus size={15} />
             </Button>
-          </span>
-        </div>
-        {codeFolders.map((f) => {
-          const open = !collapsed.has(f.id);
-          return (
-            <div key={f.id} className="rail-folder">
-              <div
-                className="rail-item rail-folder-row"
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.target !== e.currentTarget) return;
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    e.currentTarget.click();
-                  }
-                }}
-                onClick={() =>
-                  setCollapsed((c) => {
-                    const n = new Set(c);
-                    if (n.has(f.id)) n.delete(f.id);
-                    else n.add(f.id);
-                    return n;
-                  })
-                }
-                onDoubleClick={() => renameFolder(f)}
-              >
-                <ChevronRight size={13} className={open ? "is-open" : ""} />
-                <Folder size={15} />
-                <span>{f.name}</span>
-                <Button
-                  variant="ghost"
-                  type="button"
-                  aria-label="New file in folder"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    addSnippet(f.id);
-                  }}
-                >
-                  <Plus size={13} />
-                </Button>
-                <Button
-                  variant="ghost"
-                  type="button"
-                  aria-label="Delete folder"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeFolder(f);
-                  }}
-                >
-                  <Trash2 size={13} />
-                </Button>
-              </div>
-              {open && (
-                <div className="rail-children">
-                  {snippets
-                    .filter((s) => s.folderId === f.id)
-                    .map((s: Snippet) => (
-                      <Button
-                        variant="ghost"
-                        type="button"
-                        key={s.id}
-                        className={`rail-item ${s.id === active.id && !editingData ? "is-active" : ""}`}
-                        onClick={() => {
-                          setActiveId(s.id);
-                          setTab("code");
-                          setResult(null);
-                        }}
-                      >
-                        <FileCode2 size={15} />
-                        <span>{s.name}</span>
-                        <em>
-                          {langs.find((l) => l.id === (s.lang || "javascript"))?.ext.split(".")[1]}
-                        </em>
-                      </Button>
-                    ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-        {snippets
-          .filter((s) => !s.folderId || !codeFolders.some((f) => f.id === s.folderId))
-          .map((s: Snippet) => (
+          </div>
+          {datasets.map((d) => (
             <Button
               variant="ghost"
               type="button"
-              key={s.id}
-              className={`rail-item ${s.id === active.id && !editingData ? "is-active" : ""}`}
-              onClick={() => {
-                setActiveId(s.id);
-                setTab("code");
-                setResult(null);
-              }}
+              key={d.id}
+              className={`rail-item ${tab === d.id ? "is-active" : ""}`}
+              onClick={() => setTab(d.id)}
             >
-              <FileCode2 size={15} />
-              <span>{s.name}</span>
-              <em>{langs.find((l) => l.id === (s.lang || "javascript"))?.ext.split(".")[1]}</em>
+              <Database size={15} />
+              <span>{d.name}</span>
+              <em>{rowsOf(d.text)}</em>
             </Button>
           ))}
-        <div className="space-rail-head">
-          <span>Datasets</span>
-          <Button variant="ghost" type="button" aria-label="New dataset" onClick={addDataset}>
-            <Plus size={15} />
-          </Button>
-        </div>
-        {datasets.map((d) => (
-          <Button
-            variant="ghost"
-            type="button"
-            key={d.id}
-            className={`rail-item ${tab === d.id ? "is-active" : ""}`}
-            onClick={() => setTab(d.id)}
-          >
-            <Database size={15} />
-            <span>{d.name}</span>
-            <em>{rowsOf(d.text)}</em>
-          </Button>
-        ))}
-      </aside>
+        </aside>
+      </SidebarPortal>
       <section className="space-main">
         {(datasetError || snippetError || folderError) && (
           <p role="alert" className="workspace-storage-error">

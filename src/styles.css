@@ -11254,31 +11254,6 @@ html body .study-workspace .workspace-header > .space-navigation {
     grid-template-columns: minmax(0, 1fr);
   }
 }
-@container (max-width:480px) {
-  html body .study-workspace .workspace-resource .sidebar,
-  html body .study-workspace .workspace-resource > .space-page > .space-rail {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    max-height: none;
-    position: absolute;
-    inset: 0 auto 0 0;
-    z-index: 36;
-    width: min(var(--sidebar-width, 244px), 85%);
-    height: 100%;
-    box-shadow: var(--shadow-pop);
-  }
-  html body .study-workspace .workspace-resource .sidebar-dismiss,
-  .workspace-tool-sidebar-dismiss {
-    display: block;
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 35;
-    background: var(--overlay);
-  }
-}
 @media (max-width: 1100px) {
   .workspace-note-breadcrumb button:nth-child(2),
   .workspace-note-breadcrumb .workspace-crumb-divider {
@@ -11470,26 +11445,43 @@ html body .study-workspace .workspace-note-breadcrumb .workspace-crumb-divider {
   fill: currentColor;
 }
 
-/* Pane-owned sidebar visibility for note navigation and study-tool rails. */
-.study-workspace .workspace-resource.sidebar-hidden > .space-page > .space-rail {
+/* One navigation host sits before the complete split grid. */
+.workspace-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+}
+.workspace-body > .workspace-grid {
+  min-width: 0;
+}
+.workspace-sidebar {
+  flex: 0 0 auto;
+  width: max-content;
+  min-height: 0;
+  height: 100%;
+}
+.workspace-sidebar[hidden] {
   display: none;
 }
-
-.workspace-sidebar-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 34px;
-  margin: 4px 0 4px 4px;
-  border: 0;
-  border-radius: var(--r-sm);
-  color: var(--muted);
-  background: transparent;
+html body .study-workspace .workspace-sidebar > .sidebar,
+html body .study-workspace .workspace-sidebar > .space-rail {
+  position: static;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  height: 100%;
+  max-height: none;
+  max-width: 85vw;
+  border-right: 1px solid var(--line);
+  border-bottom: 0;
+  overflow: auto;
 }
-.workspace-sidebar-toggle:hover,
-.workspace-sidebar-toggle[aria-pressed="true"] {
-  color: var(--ink);
-  background: var(--hover);
+html body .study-workspace .workspace-sidebar > .space-rail {
+  display: block;
+  width: 232px;
+  padding: 12px;
 }
 .workspace-file-layout {
   display: flex;
@@ -11498,24 +11490,6 @@ html body .study-workspace .workspace-note-breadcrumb .workspace-crumb-divider {
   flex: 1;
   min-width: 0;
 }
-.workspace-sidebar-empty {
-  color: var(--muted);
-  padding: 8px;
-  font-size: 12px;
-}
-@media print {
-  .workspace-file-layout > .sidebar,
-  .workspace-file-layout > .sidebar-dismiss {
-    display: none !important;
-  }
-}
-
-.workspace-tool-sidebar-dismiss {
-  display: none;
-}
-.workspace-mirror {
-  flex-direction: row;
-}
 .workspace-mirror-body {
   display: flex;
   flex-direction: column;
@@ -11523,23 +11497,36 @@ html body .study-workspace .workspace-note-breadcrumb .workspace-crumb-divider {
   min-width: 0;
   min-height: 0;
 }
-@container (min-width:481px) {
-  .workspace-resource > .space-page {
-    flex-direction: row;
+.workspace-sidebar-empty {
+  color: var(--muted);
+  padding: 8px;
+  font-size: 12px;
+}
+.workspace-sidebar-dismiss {
+  display: none;
+}
+@media (max-width: 700px) {
+  .workspace-sidebar {
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: 36;
+    box-shadow: var(--shadow-pop);
   }
-  html body .study-workspace .workspace-resource > .space-page > .space-rail {
-    width: 232px;
-    min-width: 0;
-    max-height: none;
-    height: 100%;
+  .workspace-sidebar-dismiss {
     display: block;
-    border-right: 1px solid var(--line);
-    border-bottom: 0;
-    overflow: auto;
+    position: absolute;
+    inset: 0;
+    z-index: 35;
+    background: var(--overlay);
+    border: 0;
   }
 }
-@container (max-width:480px) {
-  .workspace-tool-sidebar-dismiss {
+@media print {
+  .workspace-sidebar,
+  .workspace-sidebar-dismiss {
+    display: none !important;
+  }
+  .workspace-body {
     display: block;
   }
 }

@@ -1,4 +1,5 @@
 // @ts-nocheck -- ported from the original Lemma codebase, which used looser type settings
+import { SidebarPortal } from "../workspace/SidebarPortal";
 import { lazy, Suspense } from "react";
 import { HeaderPortal } from "../workspace/Workspace";
 import { NoteHeader } from "../workspace/NoteHeader";
@@ -1888,109 +1889,117 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
         style={{ "--sidebar-width": `${preferences.sidebarWidth}px` } as React.CSSProperties}
       >
         {switcher}
-        {sidebarDismiss}
+        {!workspace && sidebarDismiss}
         {sidebar && (
-          <aside className="sidebar">
-            <div className="brand">
+          <SidebarPortal
+            host={workspace?.sidebarHost}
+            visible={!workspace || (workspace.active && !!workspace.sidebarHost)}
+          >
+            <aside
+              className="sidebar"
+              style={{ "--sidebar-width": `${preferences.sidebarWidth}px` }}
+            >
+              <div className="brand">
+                <Button
+                  variant="ghost"
+                  className="brand-button"
+                  onClick={() => {
+                    showLibrary();
+                    setHome(true);
+                  }}
+                >
+                  <span className="brand-mark">λ</span>
+                  <span>lemma</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="icon-button sidebar-collapse"
+                  aria-label="Collapse sidebar"
+                  onClick={() => setSidebar(false)}
+                >
+                  <PanelLeftClose size={16} />
+                </Button>
+              </div>
+              <Button variant="ghost" className="new-note" onClick={() => create(currentFolder)}>
+                <Plus size={15} />
+                New note<span>⌘ N</span>
+              </Button>
               <Button
                 variant="ghost"
-                className="brand-button"
+                className={`side-link ${!home && !favoritesOnly && !currentFolder ? "selected" : ""}`}
                 onClick={() => {
-                  showLibrary();
-                  setHome(true);
+                  setHome(false);
+                  setCurrentFolder(null);
+                  setFavoritesOnly(false);
                 }}
               >
-                <span className="brand-mark">λ</span>
-                <span>lemma</span>
+                <Home size={15} /> All notes
               </Button>
               <Button
                 variant="ghost"
-                className="icon-button sidebar-collapse"
-                aria-label="Collapse sidebar"
-                onClick={() => setSidebar(false)}
+                className={`side-link ${favoritesOnly ? "selected" : ""}`}
+                onClick={() => {
+                  setCurrentFolder(null);
+                  setFavoritesOnly(true);
+                }}
               >
-                <PanelLeftClose size={16} />
+                <Star size={15} /> Favorites
               </Button>
-            </div>
-            <Button variant="ghost" className="new-note" onClick={() => create(currentFolder)}>
-              <Plus size={15} />
-              New note<span>⌘ N</span>
-            </Button>
-            <Button
-              variant="ghost"
-              className={`side-link ${!home && !favoritesOnly && !currentFolder ? "selected" : ""}`}
-              onClick={() => {
-                setHome(false);
-                setCurrentFolder(null);
-                setFavoritesOnly(false);
-              }}
-            >
-              <Home size={15} /> All notes
-            </Button>
-            <Button
-              variant="ghost"
-              className={`side-link ${favoritesOnly ? "selected" : ""}`}
-              onClick={() => {
-                setCurrentFolder(null);
-                setFavoritesOnly(true);
-              }}
-            >
-              <Star size={15} /> Favorites
-            </Button>
-            <label className="search-field">
-              <Search size={14} />
-              <input
-                aria-label="Search notes"
-                placeholder="Search notes"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-              <Button
-                variant="ghost"
-                className="search-shortcut"
-                aria-label="Open note search"
-                onClick={() => setSearchOpen(true)}
-              >
-                <kbd>⇧⌘ P</kbd>
-              </Button>
-            </label>
-            {renderFolderNavigation()}
-            {(() => {
-              const all = [
-                ...new Set(notes.flatMap((n) => ((n as any).tags || []) as string[])),
-              ].sort();
-              return all.length ? (
-                <section className="sidebar-tags">
-                  <div className="notes-label">Tags</div>
-                  <div className="sidebar-tag-list">
-                    {all.map((t) => (
-                      <Button
-                        variant="ghost"
-                        key={t}
-                        className={`sidebar-tag ${tagFilter === t ? "active" : ""}`}
-                        onClick={() => setTagFilter(tagFilter === t ? null : t)}
-                      >
-                        {t}
-                      </Button>
-                    ))}
-                  </div>
-                </section>
-              ) : null;
-            })()}
-            <div className="sidebar-bottom">
-              <Button
-                variant="ghost"
-                className="settings-item"
-                onClick={() => setSettingsOpen(true)}
-              >
-                <Settings2 size={15} /> Settings
-              </Button>
-              <Button variant="ghost" className="settings-item" onClick={toggleTheme}>
-                <Contrast size={15} />
-                <span>{dark ? "Dark appearance" : "Light appearance"}</span>
-              </Button>
-            </div>
-          </aside>
+              <label className="search-field">
+                <Search size={14} />
+                <input
+                  aria-label="Search notes"
+                  placeholder="Search notes"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+                <Button
+                  variant="ghost"
+                  className="search-shortcut"
+                  aria-label="Open note search"
+                  onClick={() => setSearchOpen(true)}
+                >
+                  <kbd>⇧⌘ P</kbd>
+                </Button>
+              </label>
+              {renderFolderNavigation()}
+              {(() => {
+                const all = [
+                  ...new Set(notes.flatMap((n) => ((n as any).tags || []) as string[])),
+                ].sort();
+                return all.length ? (
+                  <section className="sidebar-tags">
+                    <div className="notes-label">Tags</div>
+                    <div className="sidebar-tag-list">
+                      {all.map((t) => (
+                        <Button
+                          variant="ghost"
+                          key={t}
+                          className={`sidebar-tag ${tagFilter === t ? "active" : ""}`}
+                          onClick={() => setTagFilter(tagFilter === t ? null : t)}
+                        >
+                          {t}
+                        </Button>
+                      ))}
+                    </div>
+                  </section>
+                ) : null;
+              })()}
+              <div className="sidebar-bottom">
+                <Button
+                  variant="ghost"
+                  className="settings-item"
+                  onClick={() => setSettingsOpen(true)}
+                >
+                  <Settings2 size={15} /> Settings
+                </Button>
+                <Button variant="ghost" className="settings-item" onClick={toggleTheme}>
+                  <Contrast size={15} />
+                  <span>{dark ? "Dark appearance" : "Light appearance"}</span>
+                </Button>
+              </div>
+            </aside>
+          </SidebarPortal>
         )}
         <section className="library-workspace">
           {home && !currentFolder && !favoritesOnly && !search && !tagFilter ? (
@@ -2323,90 +2332,99 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
       }
     >
       {switcher}
-      {(!preview || workspace) && !focus && sidebarDismiss}
+      {!workspace && !preview && !focus && sidebarDismiss}
       {sidebar && (!preview || workspace) && !focus && (
-        <aside className="sidebar">
-          <div className="brand">
-            <Button variant="ghost" className="brand-button" onClick={() => showLibrary()}>
-              <span className="brand-mark">λ</span>
-              <span>lemma</span>
-            </Button>
-            <Button
-              variant="ghost"
-              aria-label="Collapse sidebar"
-              title="Collapse sidebar"
-              className="icon-button sidebar-collapse"
-              onClick={() => setSidebar(false)}
-            >
-              <PanelLeftClose size={16} />
-            </Button>
-          </div>
-          <Button variant="ghost" className="new-note" onClick={() => create(currentFolder)}>
-            <Plus size={15} />
-            New note<span>⌘ N</span>
-          </Button>
-          <Button variant="ghost" className="side-link" onClick={() => showLibrary(null, false)}>
-            <Home size={15} /> All notes
-          </Button>
-          <Button variant="ghost" className="side-link" onClick={() => showLibrary(null, true)}>
-            <Star size={15} /> Favorites
-          </Button>
-          <label className="search-field">
-            <Search size={14} />
-            <input
-              aria-label="Search notes"
-              placeholder="Search notes"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            <Button
-              variant="ghost"
-              className="search-shortcut"
-              aria-label="Open note search"
-              onClick={() => setSearchOpen(true)}
-            >
-              <kbd>⇧⌘ P</kbd>
-            </Button>
-          </label>
-          {renderFolderNavigation()}
-          {(() => {
-            const all = [
-              ...new Set(notes.flatMap((n) => ((n as any).tags || []) as string[])),
-            ].sort();
-            return all.length ? (
-              <section className="sidebar-tags">
-                <div className="notes-label">Tags</div>
-                <div className="sidebar-tag-list">
-                  {all.map((t) => (
-                    <Button
-                      variant="ghost"
-                      key={t}
-                      className={`sidebar-tag ${tagFilter === t ? "active" : ""}`}
-                      onClick={() => setTagFilter(tagFilter === t ? null : t)}
-                    >
-                      {t}
-                    </Button>
-                  ))}
-                </div>
-              </section>
-            ) : null;
-          })()}
-          <div className="sidebar-bottom">
-            <div className="sidebar-help">
-              <Keyboard size={14} />{" "}
-              <span>
-                <kbd>⇧⌘ P</kbd> Search notes
-              </span>
+        <SidebarPortal
+          host={workspace?.sidebarHost}
+          visible={!workspace || (workspace.active && !!workspace.sidebarHost)}
+        >
+          <aside className="sidebar" style={{ "--sidebar-width": `${preferences.sidebarWidth}px` }}>
+            <div className="brand">
+              <Button variant="ghost" className="brand-button" onClick={() => showLibrary()}>
+                <span className="brand-mark">λ</span>
+                <span>lemma</span>
+              </Button>
+              <Button
+                variant="ghost"
+                aria-label="Collapse sidebar"
+                title="Collapse sidebar"
+                className="icon-button sidebar-collapse"
+                onClick={() => setSidebar(false)}
+              >
+                <PanelLeftClose size={16} />
+              </Button>
             </div>
-            <Button variant="ghost" className="settings-item" onClick={() => setSettingsOpen(true)}>
-              <Settings2 size={15} /> Settings
+            <Button variant="ghost" className="new-note" onClick={() => create(currentFolder)}>
+              <Plus size={15} />
+              New note<span>⌘ N</span>
             </Button>
-            <Button variant="ghost" onClick={toggleTheme} className="settings-item">
-              <Contrast size={15} />
-              <span>{dark ? "Dark appearance" : "Light appearance"}</span>
+            <Button variant="ghost" className="side-link" onClick={() => showLibrary(null, false)}>
+              <Home size={15} /> All notes
             </Button>
-          </div>
-        </aside>
+            <Button variant="ghost" className="side-link" onClick={() => showLibrary(null, true)}>
+              <Star size={15} /> Favorites
+            </Button>
+            <label className="search-field">
+              <Search size={14} />
+              <input
+                aria-label="Search notes"
+                placeholder="Search notes"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <Button
+                variant="ghost"
+                className="search-shortcut"
+                aria-label="Open note search"
+                onClick={() => setSearchOpen(true)}
+              >
+                <kbd>⇧⌘ P</kbd>
+              </Button>
+            </label>
+            {renderFolderNavigation()}
+            {(() => {
+              const all = [
+                ...new Set(notes.flatMap((n) => ((n as any).tags || []) as string[])),
+              ].sort();
+              return all.length ? (
+                <section className="sidebar-tags">
+                  <div className="notes-label">Tags</div>
+                  <div className="sidebar-tag-list">
+                    {all.map((t) => (
+                      <Button
+                        variant="ghost"
+                        key={t}
+                        className={`sidebar-tag ${tagFilter === t ? "active" : ""}`}
+                        onClick={() => setTagFilter(tagFilter === t ? null : t)}
+                      >
+                        {t}
+                      </Button>
+                    ))}
+                  </div>
+                </section>
+              ) : null;
+            })()}
+            <div className="sidebar-bottom">
+              <div className="sidebar-help">
+                <Keyboard size={14} />{" "}
+                <span>
+                  <kbd>⇧⌘ P</kbd> Search notes
+                </span>
+              </div>
+              <Button
+                variant="ghost"
+                className="settings-item"
+                onClick={() => setSettingsOpen(true)}
+              >
+                <Settings2 size={15} /> Settings
+              </Button>
+              <Button variant="ghost" onClick={toggleTheme} className="settings-item">
+                <Contrast size={15} />
+                <span>{dark ? "Dark appearance" : "Light appearance"}</span>
+              </Button>
+            </div>
+          </aside>
+        </SidebarPortal>
       )}
       <section
         className={`workspace ${referenceOpen ? `has-reference reference-${referenceSide}` : ""}`}

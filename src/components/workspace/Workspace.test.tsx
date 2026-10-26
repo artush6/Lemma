@@ -1,30 +1,50 @@
 import { fireEvent, render, screen, waitFor, cleanup, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initialLayout, openResource } from "./model";
-import { StudyWorkspace } from "./Workspace";
+import { StudyWorkspace, type EmbeddedWorkspace } from "./Workspace";
+import { SidebarPortal } from "./SidebarPortal";
 import { repository, type Note } from "@/lib/notes";
 const mount = vi.hoisted(() => vi.fn());
 vi.mock("../editor/Editor", () => ({
-  default: ({
-    workspace,
-  }: {
-    workspace: { noteId?: string; sidebarOpen: boolean; onSidebarChange: (open: boolean) => void };
-  }) => {
+  default: ({ workspace }: { workspace: EmbeddedWorkspace }) => {
     mount(workspace.noteId);
     return (
       <>
         {workspace.sidebarOpen && (
-          <aside aria-label="Note sidebar">
-            <button onClick={() => workspace.onSidebarChange(false)}>Collapse sidebar</button>
-          </aside>
+          <SidebarPortal
+            host={workspace.sidebarHost}
+            visible={workspace.active && !!workspace.sidebarHost}
+          >
+            <aside aria-label="Note sidebar">
+              <button onClick={() => workspace.onSidebarChange(false)}>Collapse sidebar</button>
+            </aside>
+          </SidebarPortal>
         )}
         <textarea aria-label={`Editor ${workspace.noteId || "library"}`} defaultValue="Original" />
       </>
     );
   },
 }));
-vi.mock("../spaces/CodeLab", () => ({ default: () => <p>Code lab content</p> }));
-vi.mock("../spaces/Flashcards", () => ({ default: () => <p>Flashcard content</p> }));
+vi.mock("../spaces/CodeLab", () => ({
+  default: ({ sidebarHost, active }: { sidebarHost: HTMLElement | null; active: boolean }) => (
+    <>
+      <SidebarPortal host={sidebarHost} visible={active && !!sidebarHost}>
+        <aside aria-label="Code sidebar">Files</aside>
+      </SidebarPortal>
+      <p>Code lab content</p>
+    </>
+  ),
+}));
+vi.mock("../spaces/Flashcards", () => ({
+  default: ({ sidebarHost, active }: { sidebarHost: HTMLElement | null; active: boolean }) => (
+    <>
+      <SidebarPortal host={sidebarHost} visible={active && !!sidebarHost}>
+        <aside aria-label="Cards sidebar">Decks</aside>
+      </SidebarPortal>
+      <p>Flashcard content</p>
+    </>
+  ),
+}));
 vi.mock("@/lib/notes", () => ({
   repository: { list: vi.fn().mockResolvedValue([]), listFolders: vi.fn().mockResolvedValue([]) },
   newNote: vi.fn(),
@@ -70,11 +90,11 @@ describe("workspace views", () => {
         within(screen.getByRole("tablist", { name: "Spaces" })).getByRole("tab", { name: space }),
         { key: "Enter" },
       );
-      const tool = await screen.findByText(content);
+      await screen.findByText(content);
       fireEvent.click(screen.getByRole("button", { name: "Sidebar" }));
-      expect(tool.closest(".workspace-resource")).toHaveClass("sidebar-hidden");
+      expect(screen.queryByRole("complementary")).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: "Sidebar" }));
-      expect(tool.closest(".workspace-resource")).not.toHaveClass("sidebar-hidden");
+      expect(screen.getAllByRole("complementary")).toHaveLength(1);
     }
     fireEvent.keyDown(
       within(screen.getByRole("tablist", { name: "Spaces" })).getByRole("tab", { name: "Notes" }),
@@ -91,7 +111,7 @@ describe("workspace views", () => {
     expect(screen.getByRole("complementary", { name: "Note sidebar" })).toBeVisible();
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 });
   });
-  it("controls each split sidebar independently without discarding editor state", async () => {
+  it("renders one sidebar before both split views and retains editor state when toggled", async () => {
     const state = openResource(
       openResource(initialLayout(), note),
       { id: "code", kind: "code", title: "Code Lab" },
@@ -101,13 +121,17 @@ describe("workspace views", () => {
     render(<StudyWorkspace owner="test" />);
     const editor = await screen.findByLabelText("Editor a");
     fireEvent.change(editor, { target: { value: "Keep this draft" } });
-    const tool = await screen.findByText("Code lab content");
-    fireEvent.click(screen.getByRole("button", { name: "left sidebar" }));
-    expect(screen.queryByRole("complementary", { name: "Note sidebar" })).toBeNull();
-    expect(tool.closest(".workspace-resource")).not.toHaveClass("sidebar-hidden");
-    fireEvent.click(screen.getByRole("button", { name: "right sidebar" }));
-    expect(tool.closest(".workspace-resource")).toHaveClass("sidebar-hidden");
-    fireEvent.click(screen.getByRole("button", { name: "left sidebar" }));
+    const sidebar = await screen.findByRole("complementary", { name: "Code sidebar" });
+    expect(screen.getAllByRole("complementary")).toHaveLength(1);
+    expect(sidebar.closest(".workspace-resource")).toBeNull();
+    expect(sidebar.closest(".workspace-sidebar")?.nextElementSibling).toHaveClass("workspace-grid");
+    expect(screen.queryByRole("button", { name: "left sidebar" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "right sidebar" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Sidebar" }));
+    expect(screen.queryByRole("complementary")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Sidebar" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Algebra" }));
+    expect(screen.getAllByRole("complementary")).toHaveLength(1);
     expect(screen.getByRole("complementary", { name: "Note sidebar" })).toBeVisible();
     expect(screen.getByLabelText("Editor a")).toBe(editor);
     expect(editor).toHaveValue("Keep this draft");
@@ -138,6 +162,7 @@ describe("workspace views", () => {
     );
     localStorage.setItem("lemma:test:workspace:v1", JSON.stringify(state));
     render(<StudyWorkspace owner="test" />);
+    fireEvent.click(screen.getByRole("tab", { name: "Example.pdf" }));
     const navigation = await screen.findByRole("complementary", { name: "Document library" });
     fireEvent.click(await within(navigation).findByRole("button", { name: "Algebra" }));
     expect(

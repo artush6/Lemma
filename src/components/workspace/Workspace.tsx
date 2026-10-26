@@ -73,6 +73,7 @@ const dragType = "application/x-lemma-workspace";
 export type EmbeddedWorkspace = {
   noteId?: string | undefined;
   active: boolean;
+  sidebarHost: HTMLElement | null;
   sidebarOpen: boolean;
   onSidebarChange: (open: boolean) => void;
   headerHost: HTMLElement | null;
@@ -209,12 +210,8 @@ export function StudyWorkspace({ owner }: { owner: string }) {
   const [files, setFiles] = useState<Record<string, Attachment>>({});
   const [headerHost, setHeaderHost] = useState<HTMLDivElement | null>(null);
   const [focus, setFocus] = useState(false);
-  const [sidebars, setSidebars] = useState<Record<PaneId, boolean>>(() => ({
-    left: window.innerWidth > 700,
-    right: window.innerWidth > 700,
-  }));
-  const setSidebarOpen = (pane: PaneId, open: boolean) =>
-    setSidebars((previous) => ({ ...previous, [pane]: open }));
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 700);
+  const [sidebarHost, setSidebarHost] = useState<HTMLDivElement | null>(null);
   const [dark, setDark] = useState(document.documentElement.classList.contains("dark"));
   const [narrow, setNarrow] = useState(window.innerWidth < 900);
   const [picker, setPicker] = useState<{ pane: PaneId; type: "all" } | null>(null);
@@ -623,17 +620,6 @@ export function StudyWorkspace({ owner }: { owner: string }) {
       </DropdownMenuContent>
     </DropdownMenu>
   );
-  const fileSidebar = (pane: PaneId) =>
-    sidebars[pane] && !focus ? (
-      <FileSidebar
-        notes={notes}
-        folders={folders}
-        onOpen={(note) => openNote(note, pane)}
-        onLibrary={() => open({ id: "library", kind: "library", title: "Library" }, pane)}
-        onCreate={() => void create(pane)}
-        onClose={() => setSidebarOpen(pane, false)}
-      />
-    ) : null;
   return (
     <div
       className={`study-workspace lemma-app ${dark ? "dark" : ""} ${focus ? "workspace-focus" : ""}`}
@@ -648,10 +634,10 @@ export function StudyWorkspace({ owner }: { owner: string }) {
             <Home size={17} />
           </button>
           <button
-            title={sidebars[layout.activePane] ? "Hide sidebar" : "Show sidebar"}
+            title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
             aria-label="Sidebar"
-            aria-pressed={sidebars[layout.activePane]}
-            onClick={() => setSidebarOpen(layout.activePane, !sidebars[layout.activePane])}
+            aria-pressed={sidebarOpen}
+            onClick={() => setSidebarOpen(!sidebarOpen)}
           >
             <PanelLeft size={17} />
           </button>
@@ -690,367 +676,393 @@ export function StudyWorkspace({ owner }: { owner: string }) {
           <ArrowLeftRight size={14} /> Switch pane
         </button>
       )}
-      <div
-        ref={grid}
-        className={`workspace-grid ${layout.split && !narrow && !focus ? "is-split" : ""} orientation-${layout.orientation}`}
-        style={{ "--split-ratio": `${layout.ratio}%` } as CSSProperties}
-      >
-        {visiblePanes.map((pane) => (
-          <section key={pane} className={`workspace-pane-header pane-${pane}`} hidden={focus}>
-            <button
-              className="workspace-sidebar-toggle"
-              aria-label={`${pane} sidebar`}
-              aria-pressed={sidebars[pane]}
-              title={`${sidebars[pane] ? "Hide" : "Show"} sidebar on the ${pane}`}
-              onClick={() => setSidebarOpen(pane, !sidebars[pane])}
-            >
-              <PanelLeft size={16} />
-            </button>
-            <div
-              role="tablist"
-              aria-label={`${pane} pane tabs`}
-              className="workspace-tabs"
-              onDragOver={(e) => {
-                if (e.dataTransfer.types.includes(dragType)) e.preventDefault();
-              }}
-              onDrop={(e) => receive(e, pane)}
-            >
-              {layout.panes[pane].tabs.map((id, index) => {
-                const resource = layout.resources.find((r) => r.id === id);
-                if (!resource) return null;
-                const Icon =
-                  resource.kind === "code" ? Code2 : resource.kind === "cards" ? Layers : FileText;
-                return (
-                  <ContextMenu key={id}>
-                    <ContextMenuTrigger asChild>
-                      <div
-                        className={`workspace-tab ${layout.panes[pane].active === id ? "is-active" : ""}`}
-                        draggable
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData(dragType, JSON.stringify({ id, from: pane }));
-                          e.dataTransfer.effectAllowed = "move";
-                          setDragging(true);
-                        }}
-                        onDragOver={(e) => {
-                          if (e.dataTransfer.types.includes(dragType)) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                          }
-                        }}
-                        onDrop={(e) => receive(e, pane, "center", index)}
-                      >
-                        <button
-                          role="tab"
-                          id={`tab-${pane}-${id}`}
-                          aria-selected={layout.panes[pane].active === id}
-                          tabIndex={layout.panes[pane].active === id ? 0 : -1}
-                          aria-controls={`panel-${pane}-${id}`}
-                          onClick={() =>
-                            setLayout((s) => ({
-                              ...s,
-                              activePane: pane,
-                              panes: { ...s.panes, [pane]: { ...s.panes[pane], active: id } },
-                            }))
-                          }
-                          onKeyDown={(e) => {
-                            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
-                            e.preventDefault();
-                            const tabs = layout.panes[pane].tabs;
-                            const next =
-                              e.key === "Home"
-                                ? 0
-                                : e.key === "End"
-                                  ? tabs.length - 1
-                                  : (index + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) %
-                                    tabs.length;
-                            setLayout((s) => ({
-                              ...s,
-                              activePane: pane,
-                              panes: {
-                                ...s.panes,
-                                [pane]: { ...s.panes[pane], active: tabs[next] },
-                              },
-                            }));
-                            document.getElementById(`tab-${pane}-${tabs[next]}`)?.focus();
-                          }}
-                        >
-                          <Icon size={15} />
-                          <span>{resource.title}</span>
-                        </button>
-                        <button
-                          className="workspace-tab-close"
-                          aria-label={`Close ${resource.title}`}
-                          onClick={() => setLayout((s) => closeTabs(s, pane, [id]))}
-                        >
-                          <X size={13} />
-                        </button>
-                      </div>
-                    </ContextMenuTrigger>
-                    <ContextMenuContent className="workspace-context">
-                      <ContextMenuItem
-                        onSelect={() => setLayout((s) => moveTab(s, id, pane, opposite(pane)))}
-                      >
-                        Move to {opposite(pane)} pane
-                      </ContextMenuItem>
-                      <ContextMenuItem onSelect={() => open(resource, opposite(pane))}>
-                        Duplicate view beside{resource.kind === "note" ? " (read only)" : ""}
-                      </ContextMenuItem>
-                      {resource.kind === "note" && (
-                        <ContextMenuItem
-                          onSelect={() => {
-                            const url = new URL(location.href);
-                            url.search = "";
-                            url.searchParams.set("note", resource.noteId);
-                            void navigator.clipboard
-                              .writeText(url.href)
-                              .catch(() => setError("Could not copy the note link."));
-                          }}
-                        >
-                          Copy document link
-                        </ContextMenuItem>
-                      )}
-                      <ContextMenuSeparator />
-                      <ContextMenuItem onSelect={() => setLayout((s) => closeTabs(s, pane, [id]))}>
-                        Close tab
-                      </ContextMenuItem>
-                      <ContextMenuItem
-                        onSelect={() =>
-                          setLayout((s) =>
-                            closeTabs(
-                              s,
-                              pane,
-                              s.panes[pane].tabs.filter((tab) => tab !== id),
-                            ),
-                          )
-                        }
-                      >
-                        Close other tabs
-                      </ContextMenuItem>
-                      <ContextMenuItem
-                        onSelect={() =>
-                          setLayout((s) => closeTabs(s, pane, s.panes[pane].tabs.slice(index + 1)))
-                        }
-                      >
-                        Close tabs to the right
-                      </ContextMenuItem>
-                    </ContextMenuContent>
-                  </ContextMenu>
-                );
-              })}
-              {menu(pane)}
-            </div>
-            {layout.split && (
-              <button
-                className="workspace-merge"
-                aria-label="Merge panes and preserve tabs"
-                title="Merge panes · ⌘/Ctrl Alt \\"
-                onClick={() => setLayout((s) => mergePanes(s, pane))}
-              >
-                <Columns2 size={16} />
-              </button>
-            )}
-          </section>
-        ))}
-        {layout.split && !narrow && !focus && (
-          <div
-            className="workspace-divider"
-            role="separator"
-            tabIndex={0}
-            aria-label="Resize panes"
-            aria-orientation={layout.orientation === "horizontal" ? "vertical" : "horizontal"}
-            aria-valuemin={25}
-            aria-valuemax={75}
-            aria-valuenow={Math.round(layout.ratio)}
-            onPointerDown={resize}
-            onDoubleClick={() => setLayout((s) => ({ ...s, ratio: 50 }))}
-            onKeyDown={(e) => {
-              if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home"].includes(e.key)) {
-                e.preventDefault();
-                setLayout((s) => ({
-                  ...s,
-                  ratio:
-                    e.key === "Home"
-                      ? 50
-                      : Math.min(
-                          75,
-                          Math.max(
-                            25,
-                            s.ratio + (["ArrowLeft", "ArrowUp"].includes(e.key) ? -5 : 5),
-                          ),
-                        ),
-                }));
-              }
-            }}
-          >
-            <span />
-          </div>
+      <div className="workspace-body">
+        {sidebarOpen && !focus && (
+          <button
+            className="workspace-sidebar-dismiss"
+            aria-label="Close sidebar"
+            onClick={() => setSidebarOpen(false)}
+          />
         )}
-        {retained
-          .filter(
-            (r) =>
-              r.kind !== "note" ||
-              !retained.some(
-                (other) => other.kind === "note" && other.id !== r.id && other.noteId === r.noteId,
-              ),
-          )
-          .map((resource) => {
-            const containing = visiblePanes.filter((p) => layout.panes[p].active === resource.id);
-            const pane = containing.includes(layout.activePane) ? layout.activePane : containing[0];
-            const visible = !!pane;
-            const resourcePane =
-              pane || (layout.panes.right.tabs.includes(resource.id) ? "right" : "left");
-            // One live editing instance per identity. A second visible view is a read-only mirror below.
-            const embedded: EmbeddedWorkspace = {
-              sidebarOpen: sidebars[resourcePane],
-              onSidebarChange: (open) => setSidebarOpen(resourcePane, open),
-              noteId: resource.kind === "note" ? resource.noteId : undefined,
-              active: visible && pane === layout.activePane,
-              headerHost,
-              onOpen: (note) => openNote(note, resourcePane),
-              onChange: updateNote,
-              externalNote:
-                resource.kind === "note" ? notes.find((n) => n.id === resource.noteId) : undefined,
-              onRemoved: (id) => {
-                const resourceId = `note:${id}`;
-                setLayout((state) => {
-                  let next = closeTabs(state, "left", [resourceId]);
-                  next = closeTabs(next, "right", [resourceId]);
-                  return { ...next, resources: next.resources.filter((r) => r.id !== resourceId) };
-                });
-                setRetained((old) => old.filter((r) => r.id !== resourceId));
-                setNotes((old) => old.filter((n) => n.id !== id));
-              },
-              onLibrary: () =>
-                open({ id: "library", kind: "library", title: "Library" }, resourcePane),
-              onCreate: (folder) => void create(resourcePane, folder),
-              onSpace: openSpace,
-              onFocus: () => setFocus((v) => !v),
-              onDragNote: startNoteDrag,
-            };
-            return (
+        <div ref={setSidebarHost} className="workspace-sidebar" hidden={!sidebarOpen || focus}>
+          {activeResource?.kind !== "note" &&
+            activeResource?.kind !== "library" &&
+            activeResource?.kind !== "code" &&
+            activeResource?.kind !== "cards" && (
+              <FileSidebar
+                notes={notes}
+                folders={folders}
+                onOpen={(note) => openNote(note, layout.activePane)}
+                onLibrary={() => open({ id: "library", kind: "library", title: "Library" })}
+                onCreate={() => void create(layout.activePane)}
+                onClose={() => setSidebarOpen(false)}
+              />
+            )}
+        </div>
+        <div
+          ref={grid}
+          className={`workspace-grid ${layout.split && !narrow && !focus ? "is-split" : ""} orientation-${layout.orientation}`}
+          style={{ "--split-ratio": `${layout.ratio}%` } as CSSProperties}
+        >
+          {visiblePanes.map((pane) => (
+            <section key={pane} className={`workspace-pane-header pane-${pane}`} hidden={focus}>
               <div
-                key={resource.id}
-                role="tabpanel"
-                data-active={visible && pane === layout.activePane}
-                id={`panel-${pane || "closed"}-${resource.id}`}
-                aria-labelledby={pane ? `tab-${pane}-${resource.id}` : undefined}
-                className={`workspace-resource ${sidebars[resourcePane] ? "" : "sidebar-hidden"} pane-${pane || "left"}`}
-                hidden={!visible}
-                onPointerDownCapture={() => {
-                  if (pane && pane !== layout.activePane)
-                    setLayout((s) => ({ ...s, activePane: pane }));
+                role="tablist"
+                aria-label={`${pane} pane tabs`}
+                className="workspace-tabs"
+                onDragOver={(e) => {
+                  if (e.dataTransfer.types.includes(dragType)) e.preventDefault();
                 }}
+                onDrop={(e) => receive(e, pane)}
               >
-                {(resource.kind === "code" || resource.kind === "cards") &&
-                  sidebars[resourcePane] &&
-                  !focus && (
-                    <button
-                      className="workspace-tool-sidebar-dismiss"
-                      aria-label="Close study sidebar"
-                      onClick={() => setSidebarOpen(resourcePane, false)}
-                    />
-                  )}
-                <Suspense fallback={<p role="status">Loading workspace…</p>}>
-                  {resource.kind === "note" || resource.kind === "library" ? (
-                    <Editor workspace={embedded} />
-                  ) : resource.kind === "code" ? (
-                    <CodeLab
-                      ownerId={owner}
-                      dark={dark}
-                      active={visible && pane === layout.activePane}
-                    />
-                  ) : resource.kind === "cards" ? (
-                    <Flashcards ownerId={owner} active={visible && pane === layout.activePane} />
-                  ) : (
-                    <div className="lemma-app workspace-file-layout">
-                      {fileSidebar(resourcePane)}
-                      <FileView
-                        resource={resource as Extract<Resource, { kind: "attachment" }>}
-                        owner={owner}
-                        cached={files[resource.id]}
-                      />
-                    </div>
-                  )}
-                </Suspense>
+                {layout.panes[pane].tabs.map((id, index) => {
+                  const resource = layout.resources.find((r) => r.id === id);
+                  if (!resource) return null;
+                  const Icon =
+                    resource.kind === "code"
+                      ? Code2
+                      : resource.kind === "cards"
+                        ? Layers
+                        : FileText;
+                  return (
+                    <ContextMenu key={id}>
+                      <ContextMenuTrigger asChild>
+                        <div
+                          className={`workspace-tab ${layout.panes[pane].active === id ? "is-active" : ""}`}
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData(dragType, JSON.stringify({ id, from: pane }));
+                            e.dataTransfer.effectAllowed = "move";
+                            setDragging(true);
+                          }}
+                          onDragOver={(e) => {
+                            if (e.dataTransfer.types.includes(dragType)) {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }
+                          }}
+                          onDrop={(e) => receive(e, pane, "center", index)}
+                        >
+                          <button
+                            role="tab"
+                            id={`tab-${pane}-${id}`}
+                            aria-selected={layout.panes[pane].active === id}
+                            tabIndex={layout.panes[pane].active === id ? 0 : -1}
+                            aria-controls={`panel-${pane}-${id}`}
+                            onClick={() =>
+                              setLayout((s) => ({
+                                ...s,
+                                activePane: pane,
+                                panes: { ...s.panes, [pane]: { ...s.panes[pane], active: id } },
+                              }))
+                            }
+                            onKeyDown={(e) => {
+                              if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key))
+                                return;
+                              e.preventDefault();
+                              const tabs = layout.panes[pane].tabs;
+                              const next =
+                                e.key === "Home"
+                                  ? 0
+                                  : e.key === "End"
+                                    ? tabs.length - 1
+                                    : (index + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) %
+                                      tabs.length;
+                              setLayout((s) => ({
+                                ...s,
+                                activePane: pane,
+                                panes: {
+                                  ...s.panes,
+                                  [pane]: { ...s.panes[pane], active: tabs[next] },
+                                },
+                              }));
+                              document.getElementById(`tab-${pane}-${tabs[next]}`)?.focus();
+                            }}
+                          >
+                            <Icon size={15} />
+                            <span>{resource.title}</span>
+                          </button>
+                          <button
+                            className="workspace-tab-close"
+                            aria-label={`Close ${resource.title}`}
+                            onClick={() => setLayout((s) => closeTabs(s, pane, [id]))}
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      </ContextMenuTrigger>
+                      <ContextMenuContent className="workspace-context">
+                        <ContextMenuItem
+                          onSelect={() => setLayout((s) => moveTab(s, id, pane, opposite(pane)))}
+                        >
+                          Move to {opposite(pane)} pane
+                        </ContextMenuItem>
+                        <ContextMenuItem onSelect={() => open(resource, opposite(pane))}>
+                          Duplicate view beside{resource.kind === "note" ? " (read only)" : ""}
+                        </ContextMenuItem>
+                        {resource.kind === "note" && (
+                          <ContextMenuItem
+                            onSelect={() => {
+                              const url = new URL(location.href);
+                              url.search = "";
+                              url.searchParams.set("note", resource.noteId);
+                              void navigator.clipboard
+                                .writeText(url.href)
+                                .catch(() => setError("Could not copy the note link."));
+                            }}
+                          >
+                            Copy document link
+                          </ContextMenuItem>
+                        )}
+                        <ContextMenuSeparator />
+                        <ContextMenuItem
+                          onSelect={() => setLayout((s) => closeTabs(s, pane, [id]))}
+                        >
+                          Close tab
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          onSelect={() =>
+                            setLayout((s) =>
+                              closeTabs(
+                                s,
+                                pane,
+                                s.panes[pane].tabs.filter((tab) => tab !== id),
+                              ),
+                            )
+                          }
+                        >
+                          Close other tabs
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          onSelect={() =>
+                            setLayout((s) =>
+                              closeTabs(s, pane, s.panes[pane].tabs.slice(index + 1)),
+                            )
+                          }
+                        >
+                          Close tabs to the right
+                        </ContextMenuItem>
+                      </ContextMenuContent>
+                    </ContextMenu>
+                  );
+                })}
+                {menu(pane)}
               </div>
-            );
-          })}
-        {visiblePanes.map((pane) => {
-          const id = layout.panes[pane].active;
-          const both = id && visiblePanes.every((p) => layout.panes[p].active === id);
-          const resource = layout.resources.find((r) => r.id === id);
-          if (both && pane !== layout.activePane && resource)
-            return (
-              <div
-                key={`mirror-${pane}`}
-                className={`workspace-resource workspace-mirror pane-${pane}`}
-                onPointerDownCapture={() => setLayout((s) => ({ ...s, activePane: pane }))}
-              >
-                {fileSidebar(pane)}
-                <div className="workspace-mirror-body">
-                  {resource.kind === "note" ? (
-                    <>
-                      <div className="workspace-mirror-label">
-                        Live read-only view · Edit in the other pane
+              {layout.split && (
+                <button
+                  className="workspace-merge"
+                  aria-label="Merge panes and preserve tabs"
+                  title="Merge panes · ⌘/Ctrl Alt \\"
+                  onClick={() => setLayout((s) => mergePanes(s, pane))}
+                >
+                  <Columns2 size={16} />
+                </button>
+              )}
+            </section>
+          ))}
+          {layout.split && !narrow && !focus && (
+            <div
+              className="workspace-divider"
+              role="separator"
+              tabIndex={0}
+              aria-label="Resize panes"
+              aria-orientation={layout.orientation === "horizontal" ? "vertical" : "horizontal"}
+              aria-valuemin={25}
+              aria-valuemax={75}
+              aria-valuenow={Math.round(layout.ratio)}
+              onPointerDown={resize}
+              onDoubleClick={() => setLayout((s) => ({ ...s, ratio: 50 }))}
+              onKeyDown={(e) => {
+                if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home"].includes(e.key)) {
+                  e.preventDefault();
+                  setLayout((s) => ({
+                    ...s,
+                    ratio:
+                      e.key === "Home"
+                        ? 50
+                        : Math.min(
+                            75,
+                            Math.max(
+                              25,
+                              s.ratio + (["ArrowLeft", "ArrowUp"].includes(e.key) ? -5 : 5),
+                            ),
+                          ),
+                  }));
+                }
+              }}
+            >
+              <span />
+            </div>
+          )}
+          {retained
+            .filter(
+              (r) =>
+                r.kind !== "note" ||
+                !retained.some(
+                  (other) =>
+                    other.kind === "note" && other.id !== r.id && other.noteId === r.noteId,
+                ),
+            )
+            .map((resource) => {
+              const containing = visiblePanes.filter((p) => layout.panes[p].active === resource.id);
+              const pane = containing.includes(layout.activePane)
+                ? layout.activePane
+                : containing[0];
+              const visible = !!pane;
+              const resourcePane =
+                pane || (layout.panes.right.tabs.includes(resource.id) ? "right" : "left");
+              // One live editing instance per identity. A second visible view is a read-only mirror below.
+              const embedded: EmbeddedWorkspace = {
+                sidebarHost,
+                sidebarOpen,
+                onSidebarChange: setSidebarOpen,
+                noteId: resource.kind === "note" ? resource.noteId : undefined,
+                active: visible && pane === layout.activePane,
+                headerHost,
+                onOpen: (note) => openNote(note, resourcePane),
+                onChange: updateNote,
+                externalNote:
+                  resource.kind === "note"
+                    ? notes.find((n) => n.id === resource.noteId)
+                    : undefined,
+                onRemoved: (id) => {
+                  const resourceId = `note:${id}`;
+                  setLayout((state) => {
+                    let next = closeTabs(state, "left", [resourceId]);
+                    next = closeTabs(next, "right", [resourceId]);
+                    return {
+                      ...next,
+                      resources: next.resources.filter((r) => r.id !== resourceId),
+                    };
+                  });
+                  setRetained((old) => old.filter((r) => r.id !== resourceId));
+                  setNotes((old) => old.filter((n) => n.id !== id));
+                },
+                onLibrary: () =>
+                  open({ id: "library", kind: "library", title: "Library" }, resourcePane),
+                onCreate: (folder) => void create(resourcePane, folder),
+                onSpace: openSpace,
+                onFocus: () => setFocus((v) => !v),
+                onDragNote: startNoteDrag,
+              };
+              return (
+                <div
+                  key={resource.id}
+                  role="tabpanel"
+                  data-active={visible && pane === layout.activePane}
+                  id={`panel-${pane || "closed"}-${resource.id}`}
+                  aria-labelledby={pane ? `tab-${pane}-${resource.id}` : undefined}
+                  className={`workspace-resource pane-${pane || "left"}`}
+                  hidden={!visible}
+                  onPointerDownCapture={() => {
+                    if (pane && pane !== layout.activePane)
+                      setLayout((s) => ({ ...s, activePane: pane }));
+                  }}
+                >
+                  <Suspense fallback={<p role="status">Loading workspace…</p>}>
+                    {resource.kind === "note" || resource.kind === "library" ? (
+                      <Editor workspace={embedded} />
+                    ) : resource.kind === "code" ? (
+                      <CodeLab
+                        ownerId={owner}
+                        sidebarHost={sidebarHost}
+                        dark={dark}
+                        active={visible && pane === layout.activePane}
+                      />
+                    ) : resource.kind === "cards" ? (
+                      <Flashcards
+                        ownerId={owner}
+                        sidebarHost={sidebarHost}
+                        active={visible && pane === layout.activePane}
+                      />
+                    ) : (
+                      <div className="lemma-app workspace-file-layout">
+                        <FileView
+                          resource={resource as Extract<Resource, { kind: "attachment" }>}
+                          owner={owner}
+                          cached={files[resource.id]}
+                        />
                       </div>
-                      <ReferencePane
-                        notes={notes}
-                        selected={resource.noteId}
-                        attachment={null}
-                        onSelect={() => {}}
-                        onAttachment={() => {}}
-                        onClose={() => {}}
-                        side="right"
-                        onSide={() => {}}
-                      />
-                    </>
-                  ) : (
-                    <div className="workspace-empty">
-                      <p>This tool is already open in the other pane.</p>
-                      <button
-                        onClick={() => setLayout((s) => ({ ...s, activePane: opposite(pane) }))}
-                      >
-                        Go to active view
-                      </button>
-                    </div>
-                  )}
+                    )}
+                  </Suspense>
                 </div>
-              </div>
-            );
-          if (!id)
-            return (
-              <div key={`empty-${pane}`} className={`workspace-resource pane-${pane}`}>
-                <div className="lemma-app workspace-file-layout">
-                  {fileSidebar(pane)}
-                  <div className="workspace-empty workspace-mirror-body">
-                    <Columns2 size={28} />
-                    <h2>Your space to study</h2>
-                    <p>Drop a tab here or open a note, PDF or study tool.</p>
-                    {menu(pane)}
+              );
+            })}
+          {visiblePanes.map((pane) => {
+            const id = layout.panes[pane].active;
+            const both = id && visiblePanes.every((p) => layout.panes[p].active === id);
+            const resource = layout.resources.find((r) => r.id === id);
+            if (both && pane !== layout.activePane && resource)
+              return (
+                <div
+                  key={`mirror-${pane}`}
+                  className={`workspace-resource workspace-mirror pane-${pane}`}
+                  onPointerDownCapture={() => setLayout((s) => ({ ...s, activePane: pane }))}
+                >
+                  <div className="workspace-mirror-body">
+                    {resource.kind === "note" ? (
+                      <>
+                        <div className="workspace-mirror-label">
+                          Live read-only view · Edit in the other pane
+                        </div>
+                        <ReferencePane
+                          notes={notes}
+                          selected={resource.noteId}
+                          attachment={null}
+                          onSelect={() => {}}
+                          onAttachment={() => {}}
+                          onClose={() => {}}
+                          side="right"
+                          onSide={() => {}}
+                        />
+                      </>
+                    ) : (
+                      <div className="workspace-empty">
+                        <p>This tool is already open in the other pane.</p>
+                        <button
+                          onClick={() => setLayout((s) => ({ ...s, activePane: opposite(pane) }))}
+                        >
+                          Go to active view
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-            );
-          return null;
-        })}
-        {dragging &&
-          visiblePanes.map((pane) => (
-            <div key={`drop-${pane}`} className={`workspace-drop-layer pane-${pane}`}>
-              {["left", "right", "top", "bottom", "center"].map((edge) => (
-                <div
-                  key={edge}
-                  className={`workspace-drop-zone zone-${edge} ${drop?.pane === pane && drop.edge === edge ? "is-over" : ""}`}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setDrop({ pane, edge });
-                  }}
-                  onDrop={(e) => receive(e, pane, edge)}
-                >
-                  {edge === "center" ? "Open here" : `Split ${edge}`}
+              );
+            if (!id)
+              return (
+                <div key={`empty-${pane}`} className={`workspace-resource pane-${pane}`}>
+                  <div className="lemma-app workspace-file-layout">
+                    <div className="workspace-empty workspace-mirror-body">
+                      <Columns2 size={28} />
+                      <h2>Your space to study</h2>
+                      <p>Drop a tab here or open a note, PDF or study tool.</p>
+                      {menu(pane)}
+                    </div>
+                  </div>
                 </div>
-              ))}
-            </div>
-          ))}
+              );
+            return null;
+          })}
+          {dragging &&
+            visiblePanes.map((pane) => (
+              <div key={`drop-${pane}`} className={`workspace-drop-layer pane-${pane}`}>
+                {["left", "right", "top", "bottom", "center"].map((edge) => (
+                  <div
+                    key={edge}
+                    className={`workspace-drop-zone zone-${edge} ${drop?.pane === pane && drop.edge === edge ? "is-over" : ""}`}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setDrop({ pane, edge });
+                    }}
+                    onDrop={(e) => receive(e, pane, edge)}
+                  >
+                    {edge === "center" ? "Open here" : `Split ${edge}`}
+                  </div>
+                ))}
+              </div>
+            ))}
+        </div>
       </div>
       <input
         hidden

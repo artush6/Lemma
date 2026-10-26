@@ -1,3 +1,4 @@
+import { SidebarPortal } from "../workspace/SidebarPortal";
 import { motion, useReducedMotion } from "framer-motion";
 import { useWorkspaceDialogs } from "@/components/ui/workspace-dialogs";
 import { Button } from "@/components/ui/button";
@@ -54,9 +55,11 @@ const grades: { g: Grade; label: string; key: string }[] = [
 
 export default function Flashcards({
   ownerId,
+  sidebarHost,
   active = true,
 }: {
   ownerId?: string;
+  sidebarHost?: HTMLElement | null;
   active?: boolean;
 }) {
   const reducedMotion = useReducedMotion();
@@ -238,34 +241,39 @@ export default function Flashcards({
       transition={{ duration: reducedMotion ? 0 : 0.18 }}
     >
       {dialogs}
-      <aside className="space-rail">
-        <div className="space-rail-head">
-          <span>Decks</span>
-          <Button variant="ghost" type="button" aria-label="New deck" onClick={addDeck}>
-            <Plus size={15} />
-          </Button>
-        </div>
-        {decks.map((d) => (
-          <Button
-            variant="ghost"
-            type="button"
-            key={d.id}
-            className={`rail-item ${d.id === deck.id ? "is-active" : ""}`}
-            onClick={() => {
-              setDeckId(d.id);
-              setStudying(false);
-              setFlipped(false);
-              clearEditor();
-              setFeedback("");
-              setNow(Date.now());
-            }}
-          >
-            <Layers size={15} />
-            <span>{d.name}</span>
-            {dueOf(d.id) > 0 && <em className="due-pill">{dueOf(d.id)}</em>}
-          </Button>
-        ))}
-      </aside>
+      <SidebarPortal
+        host={sidebarHost}
+        visible={sidebarHost === undefined || (active && !!sidebarHost)}
+      >
+        <aside className="space-rail">
+          <div className="space-rail-head">
+            <span>Decks</span>
+            <Button variant="ghost" type="button" aria-label="New deck" onClick={addDeck}>
+              <Plus size={15} />
+            </Button>
+          </div>
+          {decks.map((d) => (
+            <Button
+              variant="ghost"
+              type="button"
+              key={d.id}
+              className={`rail-item ${d.id === deck.id ? "is-active" : ""}`}
+              onClick={() => {
+                setDeckId(d.id);
+                setStudying(false);
+                setFlipped(false);
+                clearEditor();
+                setFeedback("");
+                setNow(Date.now());
+              }}
+            >
+              <Layers size={15} />
+              <span>{d.name}</span>
+              {dueOf(d.id) > 0 && <em className="due-pill">{dueOf(d.id)}</em>}
+            </Button>
+          ))}
+        </aside>
+      </SidebarPortal>
       <section className="space-main">
         {(deckError || cardError) && (
           <p className="workspace-storage-error" role="alert">
