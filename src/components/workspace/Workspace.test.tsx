@@ -258,6 +258,67 @@ describe("workspace views", () => {
       }),
     ).toBeInTheDocument();
   });
+  it("opens layout actions with the keyboard and adds four visible document slots", async () => {
+    seed();
+    render(<StudyWorkspace owner="test" />);
+    for (const [pane, direction] of [
+      ["left", "right"],
+      ["left", "bottom"],
+      ["right", "bottom"],
+    ]) {
+      fireEvent.keyDown(screen.getByRole("button", { name: `Layout options for ${pane} pane` }), {
+        key: "Enter",
+      });
+      fireEvent.click(await screen.findByRole("menuitem", { name: `Split ${direction}` }));
+    }
+    expect(
+      screen
+        .getAllByRole("tablist")
+        .filter((el) => el.getAttribute("aria-label")?.endsWith("pane tabs")),
+    ).toHaveLength(4);
+    fireEvent.keyDown(screen.getByRole("button", { name: "Layout options for left pane" }), {
+      key: "Enter",
+    });
+    expect(await screen.findByRole("menuitem", { name: "Split right" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Merge all panes" }));
+    expect(screen.queryByRole("tablist", { name: "right pane tabs" })).toBeNull();
+  });
+  it("opens the split icon menu with a right click even in a single pane", async () => {
+    render(<StudyWorkspace owner="test" />);
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Layout options for left pane" }));
+    expect(await screen.findByRole("menuitem", { name: "Split bottom" })).toBeVisible();
+    expect(screen.getByRole("menuitem", { name: "Close pane" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+  });
+  it("accepts a tab drag into a bottom split without remounting the note", async () => {
+    seed();
+    const { container } = render(<StudyWorkspace owner="test" />);
+    const editor = screen.getByLabelText("Editor a");
+    fireEvent.change(editor, { target: { value: "Keep unsaved text" } });
+    const data = new Map<string, string>();
+    const dataTransfer = {
+      types: ["application/x-lemma-workspace"],
+      files: [],
+      setData: (key: string, value: string) => data.set(key, value),
+      getData: (key: string) => data.get(key) || "",
+      effectAllowed: "move",
+    };
+    fireEvent.dragStart(screen.getByRole("tab", { name: "Algebra" }).closest(".workspace-tab")!, {
+      dataTransfer,
+    });
+    fireEvent.dragOver(container.querySelector(".pane-left .zone-bottom")!, { dataTransfer });
+    fireEvent.drop(container.querySelector(".pane-left .zone-bottom")!, { dataTransfer });
+    expect(screen.getByRole("tablist", { name: "right pane tabs" })).toContainElement(
+      screen.getByRole("tab", { name: "Algebra" }),
+    );
+    expect(screen.getByLabelText("Editor a")).toBe(editor);
+    expect(editor).toHaveValue("Keep unsaved text");
+  });
   it("opens the existing document picker as a centered modal with one target pane", async () => {
     render(<StudyWorkspace owner="test" />);
     fireEvent.keyDown(screen.getByRole("button", { name: "Open resource in left pane" }), {

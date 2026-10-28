@@ -9,6 +9,7 @@ import {
   type DragEvent,
 } from "react";
 import { createPortal } from "react-dom";
+import { Button } from "@/components/ui/button";
 import type { User } from "@supabase/supabase-js";
 import {
   Plus,
@@ -57,15 +58,24 @@ import {
   initialLayout,
   openResource,
   closeTabs,
+  closePane,
   moveTab,
+  moveInDirection,
   mergePanes,
   restoreLayout,
   opposite,
+  paneIds,
+  visiblePaneIds,
+  splitPane,
+  navigateResource,
+  navigateLinkedResource,
+  type Direction,
   type Layout,
   type Resource,
   type PaneId,
 } from "./model";
 import { FileSidebar } from "./FileSidebar";
+import { SidebarPreferences } from "./SidebarPreferences";
 import { getAttachment, storeAttachment } from "./attachmentStore";
 const CodeLab = lazy(() => import("../spaces/CodeLab"));
 const Flashcards = lazy(() => import("../spaces/Flashcards"));
@@ -195,7 +205,12 @@ export function StudyWorkspace({ owner }: { owner: string }) {
     const params = new URLSearchParams(location.search);
     const noteId = params.get("note");
     if (noteId)
-      state = openResource(state, { id: `note:${noteId}`, kind: "note", noteId, title: "Note" });
+      state = navigateLinkedResource(state, {
+        id: `note:${noteId}`,
+        kind: "note",
+        noteId,
+        title: "Note",
+      });
     const space = params.get("space");
     if (space === "code" || space === "cards")
       state = openResource(state, {
@@ -216,6 +231,7 @@ export function StudyWorkspace({ owner }: { owner: string }) {
   const [narrow, setNarrow] = useState(window.innerWidth < 900);
   const [picker, setPicker] = useState<{ pane: PaneId; type: "all" } | null>(null);
   const [query, setQuery] = useState("");
+  const [layoutMenuPane, setLayoutMenuPane] = useState<PaneId | null>(null);
   const [error, setError] = useState("");
   const [dragging, setDragging] = useState(false);
   const [drop, setDrop] = useState<{ pane: PaneId; edge: string } | null>(null);
@@ -226,7 +242,20 @@ export function StudyWorkspace({ owner }: { owner: string }) {
   const stateRef = useRef(layout);
   stateRef.current = layout;
   const visiblePanes: PaneId[] =
-    layout.split && !narrow && !focus ? ["left", "right"] : [layout.activePane];
+    layout.split && !narrow && !focus ? visiblePaneIds(layout) : [layout.activePane];
+  const paneStyle = (pane?: PaneId, header = false): CSSProperties => {
+    const index =
+      visiblePanes.length > 2
+        ? (layout.cells?.[pane || "left"] ?? Math.max(0, visiblePanes.indexOf(pane || "left")))
+        : Math.max(0, visiblePanes.indexOf(pane || "left"));
+    if (visiblePanes.length > 2)
+      return { gridColumn: (index % 2) + 1, gridRow: Math.floor(index / 2) * 2 + (header ? 1 : 2) };
+    if (visiblePanes.length === 2)
+      return layout.orientation === "horizontal"
+        ? { gridColumn: index === 0 ? 1 : 3, gridRow: header ? 1 : 2 }
+        : { gridColumn: 1, gridRow: index === 0 ? (header ? 1 : 2) : header ? 4 : 5 };
+    return { gridColumn: 1, gridRow: header ? 1 : 2 };
+  };
   const activeResource = layout.resources.find(
     (r) => r.id === layout.panes[layout.activePane].active,
   );
@@ -252,7 +281,8 @@ export function StudyWorkspace({ owner }: { owner: string }) {
     );
   }, []);
   const open = useCallback(
-    (resource: Resource, pane?: PaneId) => setLayout((old) => openResource(old, resource, pane)),
+    (resource: Resource, pane?: PaneId) =>
+      setLayout((old) => navigateResource(old, resource, pane)),
     [],
   );
   const openNote = (note: Note, pane?: PaneId) =>
@@ -267,10 +297,13 @@ export function StudyWorkspace({ owner }: { owner: string }) {
         (id) => state.resources.find((r) => r.id === id)?.kind === "note",
       );
       if (id)
-        setLayout((old) => ({
-          ...old,
-          panes: { ...old.panes, [old.activePane]: { ...old.panes[old.activePane], active: id } },
-        }));
+        setLayout((old) =>
+          navigateResource(
+            old,
+            old.resources.find((r) => r.id === id)!,
+            old.activePane,
+          ),
+        );
       else open({ id: "library", kind: "library", title: "Library" });
     } else open({ id: next, kind: next, title: next === "code" ? "Code Lab" : "Flashcards" });
   };
@@ -324,7 +357,10 @@ export function StudyWorkspace({ owner }: { owner: string }) {
   }, []);
   useEffect(() => {
     try {
-      const openIds = new Set([...layout.panes.left.tabs, ...layout.panes.right.tabs]);
+      const openIds = new Set(paneIds.flatMap((p) => layout.panes[p].tabs));
+      Object.values(layout.noteLayouts || {}).forEach((saved) =>
+        paneIds.forEach((p) => saved.panes[p].tabs.forEach((id) => openIds.add(id))),
+      );
       localStorage.setItem(
         storageKey,
         JSON.stringify({ ...layout, resources: layout.resources.filter((r) => openIds.has(r.id)) }),
@@ -360,11 +396,21 @@ export function StudyWorkspace({ owner }: { owner: string }) {
     const start = (event: globalThis.DragEvent) => {
       if (event.dataTransfer?.types.includes(dragType)) setDragging(true);
     };
+    const enter = (event: globalThis.DragEvent) => {
+      if (event.dataTransfer?.types.includes("Files")) setDragging(true);
+    };
+    const leave = (event: globalThis.DragEvent) => {
+      if (!event.relatedTarget && event.target === document.documentElement) end();
+    };
+    window.addEventListener("dragenter", enter);
+    window.addEventListener("dragleave", leave);
     window.addEventListener("lemma:reference", reference);
     window.addEventListener("dragstart", start);
     window.addEventListener("dragend", end);
     window.addEventListener("drop", end);
     return () => {
+      window.removeEventListener("dragenter", enter);
+      window.removeEventListener("dragleave", leave);
       window.removeEventListener("lemma:reference", reference);
       window.removeEventListener("dragstart", start);
       window.removeEventListener("dragend", end);
@@ -409,10 +455,13 @@ export function StudyWorkspace({ owner }: { owner: string }) {
             (event.code === "BracketRight" ? 1 : -1) +
             current.tabs.length) %
           current.tabs.length;
-        setLayout((s) => ({
-          ...s,
-          panes: { ...s.panes, [pane]: { ...current, active: current.tabs[index] } },
-        }));
+        setLayout((s) =>
+          navigateResource(
+            s,
+            s.resources.find((r) => r.id === current.tabs[index])!,
+            pane,
+          ),
+        );
       } else if (event.shiftKey && event.code === "KeyF") {
         if (activeResource?.kind !== "note") setFocus((v) => !v);
       } else handled = false;
@@ -429,12 +478,14 @@ export function StudyWorkspace({ owner }: { owner: string }) {
       if (next === "code" || next === "cards")
         open({ id: next, kind: next, title: next === "code" ? "Code Lab" : "Flashcards" });
       else if (id)
-        open({
-          id: `note:${id}`,
-          kind: "note",
-          noteId: id,
-          title: notes.find((n) => n.id === id)?.title || "Note",
-        });
+        setLayout((state) =>
+          navigateLinkedResource(state, {
+            id: `note:${id}`,
+            kind: "note",
+            noteId: id,
+            title: notes.find((n) => n.id === id)?.title || "Note",
+          }),
+        );
       else open({ id: "library", kind: "library", title: "Library" });
     };
     window.addEventListener("popstate", navigate);
@@ -482,6 +533,25 @@ export function StudyWorkspace({ owner }: { owner: string }) {
     event.stopPropagation();
     setDragging(false);
     setDrop(null);
+    if (event.dataTransfer.files.length) {
+      const result =
+        edge === "center"
+          ? { layout: stateRef.current, target: pane }
+          : splitPane(stateRef.current, pane, edge as Direction);
+      setLayout(result.layout);
+      const selected = Array.from(event.dataTransfer.files);
+      void (async () => {
+        for (const file of selected) {
+          try {
+            const block = await readAttachment(file);
+            await addAttachment(block.attrs as Attachment, result.target);
+          } catch {
+            setError("Could not open this file. Try Open PDF or document from the pane menu.");
+          }
+        }
+      })();
+      return;
+    }
     try {
       const data = JSON.parse(event.dataTransfer.getData(dragType));
       const resource: Resource | undefined =
@@ -493,20 +563,12 @@ export function StudyWorkspace({ owner }: { owner: string }) {
       )
         return;
       let target = pane;
-      let next = layout;
+      let next = stateRef.current;
       if (edge !== "center") {
-        target = edge === "left" || edge === "top" ? "left" : "right";
-        next = {
-          ...next,
-          split: true,
-          orientation: edge === "top" || edge === "bottom" ? "vertical" : "horizontal",
-        };
-        // Keep the current content opposite the new drop in a previously single pane.
-        if (!layout.split && target === "left")
-          next = { ...next, panes: { left: { tabs: [], active: null }, right: layout.panes.left } };
+        const result = splitPane(next, pane, edge as Direction);
+        next = result.layout;
+        target = result.target;
       }
-      if (!layout.split && target === "left" && edge !== "center" && data.from === "left")
-        data.from = "right";
       if (data.from && next.panes[data.from as PaneId]?.tabs.includes(resource.id))
         next = moveTab(next, resource.id, data.from, target, index);
       else next = openResource(next, resource, target);
@@ -560,6 +622,92 @@ export function StudyWorkspace({ owner }: { owner: string }) {
     setQuery("");
     setPicker({ pane, type: "all" });
   };
+  const arrange = (
+    pane: PaneId,
+    direction: Direction,
+    move = false,
+    id = layout.panes[pane].active,
+  ) => {
+    setLayout((state) => {
+      const { layout: next } = splitPane(state, pane, direction);
+      return move && id ? moveInDirection(state, id, pane, direction) : next;
+    });
+  };
+  const layoutMenu = (pane: PaneId) => (
+    <DropdownMenu
+      open={layoutMenuPane === pane}
+      onOpenChange={(open) => setLayoutMenuPane(open ? pane : null)}
+    >
+      <DropdownMenuTrigger asChild>
+        <button
+          className="workspace-merge"
+          aria-label={`Layout options for ${pane} pane`}
+          title="Split and arrange documents"
+          onContextMenu={(event) => {
+            event.preventDefault();
+            setLayoutMenuPane(pane);
+          }}
+        >
+          <Columns2 size={16} />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="workspace-context">
+        <DropdownMenuLabel>Arrange documents · up to four panes</DropdownMenuLabel>
+        {(["left", "right", "top", "bottom"] as Direction[]).map((direction) => (
+          <DropdownMenuItem
+            key={`move-${direction}`}
+            disabled={
+              !layout.panes[pane].active ||
+              moveInDirection(layout, layout.panes[pane].active!, pane, direction) === layout
+            }
+            onSelect={() => arrange(pane, direction, true)}
+          >
+            Move document {direction}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        {(["left", "right", "top", "bottom"] as Direction[]).map((direction) => (
+          <DropdownMenuItem
+            key={direction}
+            disabled={
+              visiblePaneIds(layout).length >= 4 ||
+              splitPane(layout, pane, direction).layout === layout
+            }
+            onSelect={() => arrange(pane, direction)}
+          >
+            Split {direction}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuItem onSelect={() => pickExisting(pane)}>
+          Open existing document
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => chooseFile(pane)}>Open PDF or document</DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          disabled={!layout.panes[pane].active}
+          onSelect={() =>
+            setLayout((state) =>
+              closeTabs(state, pane, state.panes[pane].active ? [state.panes[pane].active!] : []),
+            )
+          }
+        >
+          Close document
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={!layout.split}
+          onSelect={() => setLayout((state) => closePane(state, pane))}
+        >
+          Close pane
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={!layout.split}
+          onSelect={() => setLayout((state) => mergePanes(state, pane))}
+        >
+          Merge all panes
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
   const menu = (pane: PaneId) => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -626,33 +774,39 @@ export function StudyWorkspace({ owner }: { owner: string }) {
     >
       <header className="workspace-header" hidden={focus}>
         <div className="workspace-header-tools">
-          <button
+          <Button
+            variant="ghost"
+            size="icon-sm"
             title="Library"
             aria-label="Library"
             onClick={() => open({ id: "library", kind: "library", title: "Library" })}
           >
             <Home size={17} />
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
             title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
             aria-label="Sidebar"
             aria-pressed={sidebarOpen}
             onClick={() => setSidebarOpen(!sidebarOpen)}
           >
             <PanelLeft size={17} />
-          </button>
+          </Button>
           <span className="workspace-brand">Lemma</span>
         </div>
         <div ref={setHeaderHost} className="workspace-editor-header" />
         <SpaceSwitcher value={space} onChange={openSpace} />
         {activeResource?.kind !== "note" && (
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             className="workspace-tool-focus"
             onClick={() => setFocus(true)}
             title="Focus · ⌘/Ctrl Shift F"
           >
             <Focus size={16} /> Focus
-          </button>
+          </Button>
         )}
       </header>
       {focus && (
@@ -671,7 +825,15 @@ export function StudyWorkspace({ owner }: { owner: string }) {
       {layout.split && narrow && !focus && (
         <button
           className="workspace-mobile-pane"
-          onClick={() => setLayout((s) => ({ ...s, activePane: opposite(s.activePane) }))}
+          onClick={() =>
+            setLayout((s) => ({
+              ...s,
+              activePane:
+                visiblePaneIds(s)[
+                  (visiblePaneIds(s).indexOf(s.activePane) + 1) % visiblePaneIds(s).length
+                ]!,
+            }))
+          }
         >
           <ArrowLeftRight size={14} /> Switch pane
         </button>
@@ -684,7 +846,14 @@ export function StudyWorkspace({ owner }: { owner: string }) {
             onClick={() => setSidebarOpen(false)}
           />
         )}
-        <div ref={setSidebarHost} className="workspace-sidebar" hidden={!sidebarOpen || focus}>
+        <div
+          ref={setSidebarHost}
+          className={`workspace-sidebar ${activeResource?.kind === "code" || activeResource?.kind === "cards" ? "has-preferences" : ""}`}
+          hidden={!sidebarOpen || focus}
+        >
+          {(activeResource?.kind === "code" || activeResource?.kind === "cards") && (
+            <SidebarPreferences />
+          )}
           {activeResource?.kind !== "note" &&
             activeResource?.kind !== "library" &&
             activeResource?.kind !== "code" &&
@@ -701,11 +870,16 @@ export function StudyWorkspace({ owner }: { owner: string }) {
         </div>
         <div
           ref={grid}
-          className={`workspace-grid ${layout.split && !narrow && !focus ? "is-split" : ""} orientation-${layout.orientation}`}
+          className={`workspace-grid ${visiblePanes.length > 2 ? "is-multi" : ""} ${dragging ? "is-dragging" : ""} ${layout.split && !narrow && !focus ? "is-split" : ""} orientation-${layout.orientation}`}
           style={{ "--split-ratio": `${layout.ratio}%` } as CSSProperties}
         >
           {visiblePanes.map((pane) => (
-            <section key={pane} className={`workspace-pane-header pane-${pane}`} hidden={focus}>
+            <section
+              key={pane}
+              className={`workspace-pane-header pane-${pane}`}
+              style={paneStyle(pane, true)}
+              hidden={focus}
+            >
               <div
                 role="tablist"
                 aria-label={`${pane} pane tabs`}
@@ -730,6 +904,9 @@ export function StudyWorkspace({ owner }: { owner: string }) {
                         <div
                           className={`workspace-tab ${layout.panes[pane].active === id ? "is-active" : ""}`}
                           draggable
+                          onPointerDownCapture={(event) => {
+                            if (event.button === 0) event.stopPropagation();
+                          }}
                           onDragStart={(e) => {
                             e.dataTransfer.setData(dragType, JSON.stringify({ id, from: pane }));
                             e.dataTransfer.effectAllowed = "move";
@@ -749,13 +926,7 @@ export function StudyWorkspace({ owner }: { owner: string }) {
                             aria-selected={layout.panes[pane].active === id}
                             tabIndex={layout.panes[pane].active === id ? 0 : -1}
                             aria-controls={`panel-${pane}-${id}`}
-                            onClick={() =>
-                              setLayout((s) => ({
-                                ...s,
-                                activePane: pane,
-                                panes: { ...s.panes, [pane]: { ...s.panes[pane], active: id } },
-                              }))
-                            }
+                            onClick={() => setLayout((s) => navigateResource(s, resource, pane))}
                             onKeyDown={(e) => {
                               if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key))
                                 return;
@@ -792,11 +963,15 @@ export function StudyWorkspace({ owner }: { owner: string }) {
                         </div>
                       </ContextMenuTrigger>
                       <ContextMenuContent className="workspace-context">
-                        <ContextMenuItem
-                          onSelect={() => setLayout((s) => moveTab(s, id, pane, opposite(pane)))}
-                        >
-                          Move to {opposite(pane)} pane
-                        </ContextMenuItem>
+                        {(["left", "right", "top", "bottom"] as Direction[]).map((direction) => (
+                          <ContextMenuItem
+                            key={direction}
+                            disabled={moveInDirection(layout, id, pane, direction) === layout}
+                            onSelect={() => arrange(pane, direction, true, id)}
+                          >
+                            Move document {direction}
+                          </ContextMenuItem>
+                        ))}
                         <ContextMenuItem onSelect={() => open(resource, opposite(pane))}>
                           Duplicate view beside{resource.kind === "note" ? " (read only)" : ""}
                         </ContextMenuItem>
@@ -848,19 +1023,10 @@ export function StudyWorkspace({ owner }: { owner: string }) {
                 })}
                 {menu(pane)}
               </div>
-              {layout.split && (
-                <button
-                  className="workspace-merge"
-                  aria-label="Merge panes and preserve tabs"
-                  title="Merge panes · ⌘/Ctrl Alt \\"
-                  onClick={() => setLayout((s) => mergePanes(s, pane))}
-                >
-                  <Columns2 size={16} />
-                </button>
-              )}
+              {layoutMenu(pane)}
             </section>
           ))}
-          {layout.split && !narrow && !focus && (
+          {layout.split && visiblePanes.length === 2 && !narrow && !focus && (
             <div
               className="workspace-divider"
               role="separator"
@@ -928,11 +1094,38 @@ export function StudyWorkspace({ owner }: { owner: string }) {
                 onRemoved: (id) => {
                   const resourceId = `note:${id}`;
                   setLayout((state) => {
-                    let next = closeTabs(state, "left", [resourceId]);
-                    next = closeTabs(next, "right", [resourceId]);
+                    let next = state;
+                    for (const p of paneIds) next = closeTabs(next, p, [resourceId]);
                     return {
                       ...next,
                       resources: next.resources.filter((r) => r.id !== resourceId),
+                      noteLayouts: Object.fromEntries(
+                        Object.entries(next.noteLayouts || {})
+                          .filter(([key]) => key !== resourceId)
+                          .map(([key, saved]) => [
+                            key,
+                            {
+                              ...saved,
+                              panes: Object.fromEntries(
+                                paneIds.map((p) => {
+                                  const tabs = saved.panes[p].tabs.filter(
+                                    (tab) => tab !== resourceId,
+                                  );
+                                  return [
+                                    p,
+                                    {
+                                      tabs,
+                                      active:
+                                        saved.panes[p].active === resourceId
+                                          ? tabs[0] || null
+                                          : saved.panes[p].active,
+                                    },
+                                  ];
+                                }),
+                              ) as Layout["panes"],
+                            },
+                          ]),
+                      ),
                     };
                   });
                   setRetained((old) => old.filter((r) => r.id !== resourceId));
@@ -953,6 +1146,7 @@ export function StudyWorkspace({ owner }: { owner: string }) {
                   id={`panel-${pane || "closed"}-${resource.id}`}
                   aria-labelledby={pane ? `tab-${pane}-${resource.id}` : undefined}
                   className={`workspace-resource pane-${pane || "left"}`}
+                  style={paneStyle(pane)}
                   hidden={!visible}
                   onPointerDownCapture={() => {
                     if (pane && pane !== layout.activePane)
@@ -990,13 +1184,16 @@ export function StudyWorkspace({ owner }: { owner: string }) {
             })}
           {visiblePanes.map((pane) => {
             const id = layout.panes[pane].active;
-            const both = id && visiblePanes.every((p) => layout.panes[p].active === id);
+            const same = visiblePanes.filter((p) => layout.panes[p].active === id);
+            const live = same.includes(layout.activePane) ? layout.activePane : same[0];
+            const both = id && same.length > 1;
             const resource = layout.resources.find((r) => r.id === id);
-            if (both && pane !== layout.activePane && resource)
+            if (both && pane !== live && resource)
               return (
                 <div
                   key={`mirror-${pane}`}
                   className={`workspace-resource workspace-mirror pane-${pane}`}
+                  style={paneStyle(pane)}
                   onPointerDownCapture={() => setLayout((s) => ({ ...s, activePane: pane }))}
                 >
                   <div className="workspace-mirror-body">
@@ -1031,7 +1228,11 @@ export function StudyWorkspace({ owner }: { owner: string }) {
               );
             if (!id)
               return (
-                <div key={`empty-${pane}`} className={`workspace-resource pane-${pane}`}>
+                <div
+                  key={`empty-${pane}`}
+                  className={`workspace-resource pane-${pane}`}
+                  style={paneStyle(pane)}
+                >
                   <div className="lemma-app workspace-file-layout">
                     <div className="workspace-empty workspace-mirror-body">
                       <Columns2 size={28} />
@@ -1044,24 +1245,27 @@ export function StudyWorkspace({ owner }: { owner: string }) {
               );
             return null;
           })}
-          {dragging &&
-            visiblePanes.map((pane) => (
-              <div key={`drop-${pane}`} className={`workspace-drop-layer pane-${pane}`}>
-                {["left", "right", "top", "bottom", "center"].map((edge) => (
-                  <div
-                    key={edge}
-                    className={`workspace-drop-zone zone-${edge} ${drop?.pane === pane && drop.edge === edge ? "is-over" : ""}`}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setDrop({ pane, edge });
-                    }}
-                    onDrop={(e) => receive(e, pane, edge)}
-                  >
-                    {edge === "center" ? "Open here" : `Split ${edge}`}
-                  </div>
-                ))}
-              </div>
-            ))}
+          {visiblePanes.map((pane) => (
+            <div
+              key={`drop-${pane}`}
+              className={`workspace-drop-layer pane-${pane}`}
+              style={paneStyle(pane)}
+            >
+              {["left", "right", "top", "bottom", "center"].map((edge) => (
+                <div
+                  key={edge}
+                  className={`workspace-drop-zone zone-${edge} ${drop?.pane === pane && drop.edge === edge ? "is-over" : ""}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDrop({ pane, edge });
+                  }}
+                  onDrop={(e) => receive(e, pane, edge)}
+                >
+                  {edge === "center" ? "Open here" : `Split ${edge}`}
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
       </div>
       <input

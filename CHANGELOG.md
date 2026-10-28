@@ -4,6 +4,50 @@ One dated section per commit, newest first. Changes belonging to the same commit
 
 The older per-file entries below were consolidated by their actual commits. Their detailed evidence and historical limitations are retained. Git history remains the source of the exact diff.
 
+<a id="workspace-controls-and-card-imports"></a>
+
+## 2026-10-28 — Scroll flashcard decks, import documents and unify workspace controls
+
+### Flashcard scrolling and document imports
+
+The card list now scrolls with the pointer directly over questions/answers, with keyboard access on the list itself. A legacy responsive `flex: none` rule previously expanded the whole tool pane to fit every card; its nested list had no scroll range and scroll containment blocked the wheel. Flashcards now constrains its main pane, keeps normal-sized header/stats/composer controls above a flexible list, and allows outer scrolling when a very short screen needs it. Mobile rows keep question/answer text together with Edit/Delete actions.
+
+Import opens a shared dialog asking whether to **Open a file** or **Paste text**, which deck to add to, and which card format to read. It supports text-based PDF, Word `.docx`, HTML, CSV/TSV, JSON, text and Markdown. Review/edit extracted text and inspect the question/answer preview before confirming. For example, a Word document with `Q: What is 2 + 2?` / `A: Four` previews one card; a two-column CSV can include a Question/Answer header, quoted commas and multiline fields. Word/HTML two-column tables become Q/A blocks. PDF/Word extract existing pairs, with no AI generation; scanned PDFs require OCR first. Formatting, pictures and equation images are not converted into editable math. Destination selection only adds there; it preserves the currently edited card/form and reports the destination in feedback.
+
+All extraction runs in the browser. PDF.js **6.4.299** and its worker load lazily from the app bundle; `fflate` **0.8.3** is now a direct dependency for Word ZIP extraction (previously transitive). Source files are not uploaded or stored; only confirmed cards enter the existing owner-scoped localStorage. Imported cards get new IDs and fresh schedules, leaving existing cards/review progress intact. Malformed input blocks confirmation instead of partially importing; batches are limited to 2,000 cards, files to 10 MiB, extracted text to one million characters, PDFs to 100 pages and Word XML to 8 MiB. Late file-read results are ignored after cancellation/source changes, and PDF workers are destroyed on success/failure. Preview renders at most 20 pairs while confirming the full displayed count.
+
+### Settings and themes in Code Lab and Flashcards
+
+Their shared far-left sidebar now has persistent **Settings** and **Light/Dark theme** controls below the native files/decks navigation. Device settings work even with no note open. The same version-1 preferences and existing theme/font/size keys are reused; an in-window notification and the storage event synchronize cached note editors with changes from another space/tab. System theme follows the OS. The tool dialog shows device/writing preferences; note-specific Sync and Account information remains in note settings. This avoids inventing a cloud-save status for locally stored tools. No auth or SQL changes were made.
+
+<a id="compact-shadcn-controls"></a>
+
+### Compact shared controls and slash command selection
+
+The slash now stays visible while choosing a block and disappears when that command is applied. Escape or clicking elsewhere keeps the literal slash. This refines the selection behavior introduced in [e990b01](https://github.com/artush6/Lemma/commit/e990b01). A transaction-mapped trigger bookmark removes only the slash that opened that menu, protecting neighbouring literal slashes and replaced/deleted text. For example, `/` → search “heading” → Enter creates an empty heading ready for typing; `/` → Escape leaves `/` in the note. Block + insertion and keyboard shortcuts preserve unrelated slashes.
+
+Shared controls now use compact shadcn/Radix patterns and the existing 4/8/12/16/24/32px spacing scale. Native Button/Slot replaces moving Framer Motion buttons, retaining focus, disabled and drag behavior. Default controls are 32px; small header actions are 28px with consistent 16px icons. Header buttons and breadcrumbs reuse Button, Settings uses shared Input/WorkspaceSelect/Switch, and the remaining custom editor folder dropdown is replaced by WorkspaceSelect. Dropdown/context/select menus share row spacing, padding, radii and theme surfaces. Notes navigation uses 32px rows or the retained 28px compact preference; Home and study-tool actions use the same control rhythm.
+
+The 48px workspace header uses a grid to center the space switcher while containing breadcrumb and actions without hard-coded absolute positions. At narrow widths, hidden Focus/Share controls remain available in the overflow menu. Mobile Settings categories scroll horizontally above full-width content rather than reserving a cramped side column. Embedded sidebars retain their density class after portaling. Library initializes directly in library mode and only matching notes portal document controls, avoiding the brief empty-note header. Screen-only chrome rules preserve printable geometry. See [UI_CONSISTENCY.md](docs/engineering/UI_CONSISTENCY.md) for the discrepancy audit and shared sources.
+
+<a id="remembered-note-splits"></a>
+
+### Remembered note splits and four-pane layouts
+
+The split icon previously merged panes immediately and the workspace could show only two resources. It now opens a keyboard-accessible layout menu in every tab row, including the single-pane view. Move a document left/right/top/bottom, split in those directions, open an existing note or device file, close a document or pane, or merge all panes back into tabs. Tab context menus expose the same directional moves. Occupied neighbours and the four-pane limit constrain further splits; three/four panes use a fixed two-by-two grid, while two-pane layouts retain their divider and horizontal/vertical orientation. On narrow screens Switch pane cycles through all saved slots.
+
+Each primary note remembers its own companion documents on this device. For example, open Algebra beside Algebra.pdf, select Geometry in the primary slot and open Geometry.pdf beside it; switching back restores Algebra.pdf and replaces Geometry's companion slots. A note with no arrangement starts alone when replacing another primary note. Opening a note from a companion slot changes that slot within the current arrangement. The primary slot follows a moved active note. Saved arrangements survive refresh, and focusing a companion note's URL restores that existing view without overwriting the primary. Closed/hidden editors remain mounted for the session, preserving pending edits and undo identity. Repeated views of the same note retain one writable editor and read-only mirrors.
+
+Native tab dragging now avoids Radix's pointer-down suppression; drop targets remain mounted while their visibility changes. Drag tabs between tab rows to move/reorder, or onto a document's edge to split. Notes from navigation and files from the file manager can also target panes; file drops reuse existing attachment validation, reading and owner-scoped storage. Closing a pane closes its tabs without deleting notes/files. Merge preserves open tabs.
+
+### Compatibility, verification and rollback
+
+The split implementation extends the existing device `workspace:v1` descriptor with additive pane/cell/primary-slot fields and per-note arrangements. Old two-pane layouts remain readable. Pairings remain device-local and attachment bytes stay in their existing IndexedDB store. No note/page/history/share format, route, authorization policy, database schema or printable A4 geometry changes. Existing working-tree split and shared-control work is included in this commit as requested.
+
+Verification: **102 tests across 24 files**, TypeScript, reachability (117 modules / 31 roots), focused new/changed-module ESLint, formatting/diff checks and production build passed. Shared legacy Editor lint remains at 15 errors / 1 warning, with the existing Fast Refresh warnings in shared UI modules; no rules were weakened. Tests cover import parsing/validation, quoted/multiline CSV, Q/A Markdown, Word/HTML extraction, cancellation/confirmation, PDF worker cleanup, sidebar preferences, slash-trigger mapping, retained editor identity and remembered splits. Browser checks used production React/Tailwind components with synthetic local data and stubbed auth/repository methods: real PDF (two pairs) and DOCX (one pair) file imports, explicit confirmation, an 80-pair TSV paste, quoted CSV preview, mobile import/settings views, Code Lab and Flashcards sidebar settings/theme controls, and propagation of text size to a cached note. With 83 cards at 1280×900, the list scrolled to 4303px while main scroll stayed 0 and header top stayed 149.1875px. At 390px the import dialog settled inside the viewport (x=12px, width=366px) with its own scrolling body. Earlier control checks also covered 320px layouts, local JavaScript Run and A4 width 793.6875px. The development fixture emitted React flushSync lifecycle warnings during note-node initialization. Live auth/cloud/share/history, screen readers, physical touch, native PDF previews, print output, explicit reduced-motion emulation and deployment remain unverified.
+
+Rollback with a normal revert commit; never rewrite published master history. No data migration is needed. Earlier workspace code ignores additive layout fields and may discard those extended arrangements if it subsequently saves the layout; note data/file bytes remain independent. Imported cards remain compatible with the existing flashcard export and schedule shape.
+
 <a id="editor-caret-and-overlay-fixes"></a>
 
 ## 2026-10-28 — Stabilize typing, slash insertion and editor overlays

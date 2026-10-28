@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Button } from "@/components/ui/button";
 import { ChevronDown, Eye, Pencil, Focus, Share2, MoreHorizontal } from "lucide-react";
 import {
   DropdownMenu,
@@ -49,26 +50,28 @@ export function NoteHeader({
   return (
     <div className="workspace-note-header">
       <nav className="workspace-note-breadcrumb" aria-label="Document breadcrumb">
-        <button onClick={onLibrary} title={folder}>
+        <Button variant="ghost" size="sm" onClick={onLibrary} title={folder}>
           <span>{folder}</span>
-        </button>
+        </Button>
         <span className="workspace-crumb-divider">/</span>
-        <button onClick={onRename} title="Rename note">
+        <Button variant="ghost" size="sm" onClick={onRename} title="Rename note">
           <span>{title}</span>
           <ChevronDown size={12} />
-        </button>
+        </Button>
       </nav>
       <div className="workspace-note-actions">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               className="workspace-mode"
               aria-label={`Document mode: ${read ? "Read" : "Edit"}`}
             >
               {read ? <Eye size={15} /> : <Pencil size={15} />}
               <span>{read ? "Read" : "Edit"}</span>
               <ChevronDown size={12} />
-            </button>
+            </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="workspace-context workspace-mode-menu">
             <DropdownMenuRadioGroup
@@ -84,29 +87,43 @@ export function NoteHeader({
             </DropdownMenuRadioGroup>
           </DropdownMenuContent>
         </DropdownMenu>
-        <button onClick={onFocus} title="Focus mode · ⌘/Ctrl Shift F">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="workspace-focus-action"
+          onClick={onFocus}
+          title="Focus mode · ⌘/Ctrl Shift F"
+        >
           <Focus size={15} />
           <span className="workspace-control-label">Focus</span>
-        </button>
+        </Button>
         <span className={`workspace-note-save ${saved}`} role="status">
           <i />
           {saved === "saving" ? "Saving…" : saved === "offline" ? "Saved locally" : "Saved"}
         </span>
-        <button className="workspace-share" onClick={onShare} title="Share read-only link">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="workspace-share"
+          onClick={onShare}
+          title="Share read-only link"
+        >
           <Share2 size={15} />
           <span className="workspace-control-label">Share</span>
-        </button>
+        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button aria-label="More note actions">
+            <Button variant="ghost" size="icon-sm" aria-label="More note actions">
               <MoreHorizontal size={18} />
-            </button>
+            </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="workspace-context">
             <DropdownMenuItem onSelect={onRename}>Rename note</DropdownMenuItem>
             <DropdownMenuItem onSelect={onFavorite}>Toggle favorite</DropdownMenuItem>
             <DropdownMenuItem onSelect={onExport}>Export…</DropdownMenuItem>
             <DropdownMenuItem onSelect={onHistory}>Version history</DropdownMenuItem>
+            <DropdownMenuItem onSelect={onFocus}>Focus mode</DropdownMenuItem>
+            <DropdownMenuItem onSelect={onShare}>Share read-only link</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={onSidebar}>Toggle note sidebar</DropdownMenuItem>
             <DropdownMenuItem onSelect={onSettings}>Writing settings…</DropdownMenuItem>

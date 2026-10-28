@@ -1,3 +1,5 @@
+import { CardImportDialog } from "./CardImportDialog";
+import type { CardPair } from "@/lib/cardImport";
 import { SidebarPortal } from "../workspace/SidebarPortal";
 import { motion, useReducedMotion } from "framer-motion";
 import { useWorkspaceDialogs } from "@/components/ui/workspace-dialogs";
@@ -6,15 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Layers, Trash2, Upload, Play, ArrowLeft, Pencil, Download } from "lucide-react";
-import {
-  newCard,
-  previewLabel,
-  schedule,
-  parseCardImport,
-  type Card,
-  type Deck,
-  type Grade,
-} from "@/lib/srs";
+import { newCard, previewLabel, schedule, type Card, type Deck, type Grade } from "@/lib/srs";
 import { useStored } from "./store";
 import katex from "katex";
 import { WorkspaceShortcuts } from "./WorkspaceShortcuts";
@@ -74,7 +68,6 @@ export default function Flashcards({
   const [front, setFront] = useState("");
   const [back, setBack] = useState("");
   const [importing, setImporting] = useState(false);
-  const [bulk, setBulk] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState("");
   const [now, setNow] = useState(Date.now());
@@ -146,27 +139,22 @@ export default function Flashcards({
     setNow(time);
     document.getElementById("card-front")?.focus();
   };
-  const doImport = () => {
-    if (!deck) return;
-    try {
-      const pairs = parseCardImport(bulk);
-      if (!pairs.length) {
-        setFeedback("Paste at least one card to import.");
-        return;
-      }
-      const time = Date.now();
-      setCards((list) => [
-        ...list,
-        ...pairs.map((pair) => newCard(deck.id, pair.front, pair.back, time)),
-      ]);
-      setBulk("");
-      setImporting(false);
-      setNow(time);
-      setFeedback(`Imported ${pairs.length} cards.`);
-    } catch (error) {
-      setFeedback(error instanceof Error ? error.message : "Could not import cards.");
-    }
+  const doImport = (pairs: CardPair[], targetDeckId: string) => {
+    if (!decks.some((item) => item.id === targetDeckId) || !pairs.length) return;
+    const time = Date.now();
+    setCards((list) => [
+      ...list,
+      ...pairs.map((pair) => newCard(targetDeckId, pair.front, pair.back, time)),
+    ]);
+    setImporting(false);
+    setNow(time);
+    setFeedback(
+      `Imported ${pairs.length} cards into ${decks.find((item) => item.id === targetDeckId)?.name}.`,
+    );
   };
+  useEffect(() => {
+    setImporting(false);
+  }, [active, ownerId]);
   const exportDeck = () => {
     const url = URL.createObjectURL(
       new Blob([JSON.stringify(deckCards, null, 2)], { type: "application/json" }),
@@ -241,6 +229,14 @@ export default function Flashcards({
       transition={{ duration: reducedMotion ? 0 : 0.18 }}
     >
       {dialogs}
+      {importing && (
+        <CardImportDialog
+          decks={decks}
+          initialDeckId={deck.id}
+          onClose={() => setImporting(false)}
+          onImport={doImport}
+        />
+      )}
       <SidebarPortal
         host={sidebarHost}
         visible={sidebarHost === undefined || (active && !!sidebarHost)}
@@ -449,45 +445,6 @@ export default function Flashcards({
                 {feedback}
               </p>
             )}
-            {importing && (
-              <div className="import-box">
-                <p className="space-hint">
-                  One card per line: front and back separated by a tab, “;” or “ - ”. You can paste
-                  two spreadsheet columns or an exported JSON deck. Imported cards start a fresh
-                  schedule.
-                </p>
-                <Textarea
-                  aria-label="Import cards"
-                  className="code-area"
-                  rows={6}
-                  value={bulk}
-                  onChange={(e) => setBulk(e.target.value)}
-                  placeholder={"chat\tcat\nmanger\tto eat"}
-                />
-                <div className="space-actions">
-                  <Button
-                    variant="ghost"
-                    className="ghost-btn"
-                    disabled={!deckCards.length}
-                    onClick={exportDeck}
-                  >
-                    <Download size={15} />
-                    Export
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    type="button"
-                    className="ghost-btn"
-                    onClick={() => setImporting(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="button" className="primary-btn" onClick={doImport}>
-                    Add cards
-                  </Button>
-                </div>
-              </div>
-            )}
             <form
               className="card-add"
               onSubmit={(e) => {
@@ -523,7 +480,7 @@ export default function Flashcards({
               )}
             </form>
             {deckCards.length ? (
-              <ul className="card-list">
+              <ul className="card-list" aria-label={`Cards in ${deck.name}`} tabIndex={0}>
                 {deckCards.map((c) => (
                   <li key={c.id}>
                     <span>

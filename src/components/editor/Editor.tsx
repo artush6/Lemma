@@ -22,6 +22,17 @@ import type { LucideIcon } from "lucide-react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { loadDocument } from "./loadDocument";
 import { useDocumentSync } from "./useDocumentSync";
+import { trackSlashTrigger } from "./slashTrigger";
+import {
+  deviceSettingsEvent,
+  readDevicePreferences,
+  readThemePreference,
+  isDarkTheme,
+  writeDevicePreferences,
+  writeThemePreference,
+} from "@/lib/devicePreferences";
+import { WorkspaceSelect } from "@/components/ui/workspace-select";
+import { Input } from "@/components/ui/input";
 import { subscribeEditorSession } from "./editorSession";
 import { ExportDialog } from "./ExportDialog";
 import { draftStorage } from "@/lib/draftStorage";
@@ -89,7 +100,6 @@ import {
   Focus,
   Type,
   Home,
-  Check,
   Contrast,
 } from "lucide-react";
 import "katex/dist/katex.min.css";
@@ -178,87 +188,14 @@ const draftStorageKey = (ownerId: string | undefined | null, id: string) =>
   `${ownerStoragePrefix(ownerId)}note:${id}`;
 const folderStorageKey = (ownerId: string | undefined | null) =>
   `${ownerStoragePrefix(ownerId)}folders`;
-type DropdownOption = { value: string; label: string };
-function Dropdown({
-  value,
-  options,
-  onChange,
-  label,
-}: {
-  value: string;
-  options: DropdownOption[];
-  onChange: (value: string) => void;
-  label: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: MouseEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", escape);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      document.removeEventListener("keydown", escape);
-    };
-  }, [open]);
-  const selected =
-    options.find((option) => option.value === value)?.label || options[0]?.label || "";
-  return (
-    <div className="dropdown" ref={root}>
-      <Button
-        variant="ghost"
-        type="button"
-        className="dropdown-trigger"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label={label}
-        onClick={() => setOpen((value) => !value)}
-      >
-        <span>{selected}</span>
-        <ChevronDown size={14} />
-      </Button>
-      {open && (
-        <div className="dropdown-menu" role="listbox" aria-label={label}>
-          {options.map((option) => (
-            <Button
-              variant="ghost"
-              type="button"
-              role="option"
-              aria-selected={option.value === value}
-              className="dropdown-option"
-              key={option.value}
-              onClick={() => {
-                onChange(option.value);
-                setOpen(false);
-              }}
-            >
-              <span>{option.label}</span>
-              {option.value === value && <Check size={14} />}
-            </Button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } = {}) {
   const workspaceRef = useRef(workspace);
   workspaceRef.current = workspace;
   const router = useRouter();
   const changeTheme = (value: "system" | "light" | "dark") => {
+    writeThemePreference(value);
     setTheme(value);
-    localStorage.setItem("lemma:theme", value);
-    const next =
-      value === "dark" ||
-      (value === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    setDark(next);
-    localStorage.setItem("lemma:dark", String(next));
+    setDark(isDarkTheme(value));
   };
   const toggleTheme = () => changeTheme(dark ? "light" : "dark");
   const [notes, setNotes] = useState<Note[]>([]),
@@ -287,7 +224,7 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
     [snippetIndex, setSnippetIndex] = useState(0),
     [snipFields, setSnipFields] = useState<[number, number][]>([]),
     [fieldIndex, setFieldIndex] = useState(0),
-    [library, setLibrary] = useState(false),
+    [library, setLibrary] = useState(() => !!workspace && !workspace.noteId),
     [currentFolder, setCurrentFolder] = useState<string | null>(null),
     [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set()),
     [favoritesOnly, setFavoritesOnly] = useState(false),
@@ -360,10 +297,25 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
     setPreferences(next);
     setFontFamily(next.font);
     setFontSize(next.size);
-    localStorage.setItem("lemma:preferences", JSON.stringify(next));
-    localStorage.setItem("lemma:font", next.font);
-    localStorage.setItem("lemma:size", String(next.size));
+    writeDevicePreferences(next);
   };
+  useEffect(() => {
+    const sync = () => {
+      const next = readDevicePreferences();
+      setPreferences(next);
+      setFontFamily(next.font);
+      setFontSize(next.size);
+      const nextTheme = readThemePreference();
+      setTheme(nextTheme);
+      setDark(isDarkTheme(nextTheme));
+    };
+    window.addEventListener(deviceSettingsEvent, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(deviceSettingsEvent, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
   const settingsDialog = (
     <>
       <style>{`@media print { @page { size: A4; margin: ${preferences.margin}mm; ${preferences.printNumbers ? "@bottom-center { content: counter(page); font-size: 9pt; }" : ""} } }`}</style>
@@ -445,6 +397,19 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
   const activePages = useMemo(() => (active ? pagesFor(active) : []), [active]);
   const activePage = activePages.find((page) => page.id === activePageId) || activePages[0] || null;
   const lastEditorContent = useRef("");
+  const slashTrigger = useRef<ReturnType<typeof trackSlashTrigger> | null>(null);
+  useEffect(() => {
+    if (!menu) {
+      slashTrigger.current?.dispose();
+      slashTrigger.current = null;
+    }
+  }, [menu]);
+  useEffect(
+    () => () => {
+      slashTrigger.current?.dispose();
+    },
+    [],
+  );
   const editor = useEditor({
     immediatelyRender: false,
     editable: !preview && !sharedView,
@@ -571,7 +536,10 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
           view.state.selection.$from.parent.textContent.trim() === ""
         ) {
           event.preventDefault();
+          const position = view.state.selection.from;
           view.dispatch(view.state.tr.insertText("/"));
+          slashTrigger.current?.dispose();
+          slashTrigger.current = trackSlashTrigger(editor, position);
           setMenuIndex(0);
           setSlashFilter("");
           setMenu(true);
@@ -1138,6 +1106,8 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
   const runCommand = useCallback(
     (c: string) => {
       if (!editor) return;
+      slashTrigger.current?.consume();
+      slashTrigger.current = null;
       setMenu(false);
       setSlashFilter("");
       editor.commands.focus(undefined, { scrollIntoView: false });
@@ -1845,6 +1815,8 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
         {note.is_favorite && <Star size={14} fill="currentColor" />}
       </Button>,
     );
+  const showNoteHeader =
+    !focus && (!workspace || (workspace.active && !!active && workspace.noteId === active.id));
   if (!darkinit || !authReady) return null;
   if (sharedView && !active && shareError)
     return (
@@ -1911,7 +1883,7 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
             visible={!workspace || (workspace.active && !!workspace.sidebarHost)}
           >
             <aside
-              className="sidebar"
+              className={`sidebar density-${preferences.density}`}
               style={{ "--sidebar-width": `${preferences.sidebarWidth}px` }}
             >
               <div className="brand">
@@ -2353,7 +2325,10 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
           host={workspace?.sidebarHost}
           visible={!workspace || (workspace.active && !!workspace.sidebarHost)}
         >
-          <aside className="sidebar" style={{ "--sidebar-width": `${preferences.sidebarWidth}px` }}>
+          <aside
+            className={`sidebar density-${preferences.density}`}
+            style={{ "--sidebar-width": `${preferences.sidebarWidth}px` }}
+          >
             <div className="brand">
               <Button variant="ghost" className="brand-button" onClick={() => showLibrary()}>
                 <span className="brand-mark">λ</span>
@@ -2475,7 +2450,7 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
           />
         )}
 
-        {!focus && (!workspace || workspace.active) && (
+        {showNoteHeader && (
           <HeaderPortal host={workspace?.headerHost}>
             {workspace ? (
               <NoteHeader
@@ -2665,7 +2640,7 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
           <div className="document-controls">
             <div className="folder-select">
               <span>Move to</span>
-              <Dropdown
+              <WorkspaceSelect
                 label="Move note"
                 value={active?.folder_id || ""}
                 options={[
@@ -3002,7 +2977,7 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
                   <BlockMenu editor={editor} onClose={() => setMenu(false)}>
                     <label className="slash-search">
                       <Search size={16} />
-                      <input
+                      <Input
                         onFocus={(event) => {
                           const menu = event.currentTarget.closest(".caret-block-menu");
                           if (menu) menu.scrollTop = 0;

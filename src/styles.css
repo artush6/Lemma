@@ -11530,3 +11530,604 @@ html body .study-workspace .workspace-sidebar > .space-rail {
     display: block;
   }
 }
+
+/* Keep drag destinations mounted so revealing them cannot cancel a native drag. */
+.workspace-grid:not(.is-dragging) > .workspace-drop-layer {
+  visibility: hidden;
+}
+.workspace-grid.is-split.is-multi {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: 42px minmax(0, 1fr) 42px minmax(0, 1fr);
+  gap: 1px;
+  background: var(--line);
+}
+.workspace-grid.is-multi > .workspace-pane-header {
+  background: var(--surface-soft);
+}
+
+/* Compact workspace UI. Shared shadcn controls use the existing 4px scale.
+   Screen-only chrome deliberately stays separate from printable sheet geometry. */
+:root {
+  --control-height: 32px;
+  --control-height-sm: 28px;
+  --workspace-header-height: 48px;
+}
+@media screen {
+  html body .study-workspace .workspace-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    height: var(--workspace-header-height);
+    min-height: var(--workspace-header-height);
+    padding: 0 var(--space-3);
+    gap: var(--space-2);
+  }
+  html body .study-workspace .workspace-header[hidden] {
+    display: none;
+  }
+  .workspace-header-tools {
+    grid-area: 1 / 1;
+    justify-self: start;
+    gap: var(--space-1);
+  }
+  html body .study-workspace :is(.workspace-editor-header, .workspace-note-header) {
+    display: contents;
+  }
+  html body .study-workspace .workspace-header > .space-navigation {
+    position: static;
+    inset: auto;
+    transform: none;
+    grid-area: 1 / 2;
+    height: auto;
+    z-index: auto;
+  }
+  html body .study-workspace .workspace-note-breadcrumb {
+    position: static;
+    grid-area: 1 / 1;
+    width: auto;
+    height: auto;
+    margin-left: calc(2 * var(--control-height-sm) + 2 * var(--space-1));
+    gap: var(--space-1);
+    overflow: hidden;
+    pointer-events: auto;
+    font-size: 13px;
+  }
+  html body .study-workspace .workspace-note-breadcrumb button {
+    height: var(--control-height-sm);
+    min-width: 0;
+    justify-content: flex-start;
+    padding: 0 var(--space-1);
+    gap: var(--space-1);
+    font-size: inherit;
+    font-weight: 400;
+    border-radius: var(--r-sm);
+  }
+  html body .study-workspace .workspace-note-breadcrumb button:last-child {
+    flex: 0 1 auto;
+    color: var(--ink);
+  }
+  html body .study-workspace .workspace-note-breadcrumb button:last-child svg {
+    width: 12px;
+    height: 12px;
+  }
+  html body .study-workspace .workspace-note-actions {
+    position: static;
+    grid-area: 1 / 3;
+    justify-self: end;
+    height: auto;
+    gap: var(--space-1);
+  }
+  html body .study-workspace :is(.workspace-header-tools, .workspace-note-actions) > button {
+    height: var(--control-height-sm);
+    min-width: var(--control-height-sm);
+    border: 0;
+    border-radius: var(--r-sm);
+    padding: 0 var(--space-2);
+    gap: var(--space-1);
+    background: transparent;
+    box-shadow: none;
+    font-size: 13px;
+  }
+  html body .study-workspace .workspace-header-tools > button,
+  html body .study-workspace .workspace-note-actions > button[aria-label="More note actions"] {
+    width: var(--control-height-sm);
+    padding: 0;
+  }
+  html body .study-workspace :is(.workspace-header-tools, .workspace-note-actions) > button:hover {
+    background: var(--hover);
+  }
+  .workspace-note-save {
+    min-width: 64px;
+    justify-content: center;
+    padding: 0 var(--space-1);
+    font-size: 12px;
+    gap: var(--space-1);
+  }
+  .workspace-note-save.offline {
+    min-width: 88px;
+  }
+  html body .study-workspace .workspace-tool-focus {
+    grid-area: 1 / 3;
+    justify-self: end;
+    height: var(--control-height-sm);
+    gap: var(--space-1);
+    padding: 0 var(--space-2);
+    font-size: 13px;
+  }
+  html body .lemma-app .space-switcher,
+  html body .study-workspace .workspace-header .space-switcher {
+    height: var(--control-height);
+    padding: 2px;
+    gap: 2px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    background: var(--soft);
+    box-shadow: none;
+  }
+  html body .lemma-app .space-switcher button {
+    height: 26px;
+    min-height: 0;
+    padding: 0 var(--space-2);
+    gap: var(--space-1);
+    border-radius: var(--r-sm);
+    font-size: 13px;
+    font-weight: 400;
+    transition:
+      background-color 120ms,
+      color 120ms;
+  }
+  html body .lemma-app .space-switcher button.is-active {
+    background: var(--paper) !important;
+    color: var(--ink) !important;
+    box-shadow: 0 1px 2px #00000012 !important;
+  }
+  html body .lemma-app .space-switcher button.is-active svg {
+    color: inherit !important;
+  }
+  html body .lemma-app :is(.ghost-btn, .primary-btn) {
+    height: var(--control-height);
+    min-height: var(--control-height);
+    padding: 0 var(--space-3);
+    gap: var(--space-2);
+    border-radius: var(--r-md);
+    font-size: 13px;
+  }
+  html body .lemma-app .space-actions [role="combobox"] {
+    height: var(--control-height);
+    font-size: 13px;
+  }
+  html body .lemma-app .space-header {
+    align-items: center;
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-4);
+  }
+  html body .lemma-app :is(.sidebar, .space-rail) {
+    animation: none;
+  }
+  html body .lemma-app :is(.rail-item, .tree-note, .folder-tree-row) {
+    gap: var(--space-2);
+    border-radius: var(--r-sm);
+    font-size: 13px;
+  }
+  html body .lemma-app .rail-item {
+    min-height: var(--control-height);
+    height: var(--control-height);
+    padding: 0 var(--space-2);
+  }
+  html body .lemma-app .sidebar {
+    padding: var(--space-3) var(--space-2);
+    gap: var(--space-1);
+  }
+  html
+    body
+    .lemma-app
+    .sidebar
+    :is(.side-link, .new-note, .search-field, .tree-note, .settings-item) {
+    height: var(--control-height);
+    min-height: var(--control-height);
+    gap: var(--space-2);
+    padding-left: var(--space-2) !important;
+    padding-right: var(--space-2) !important;
+    font-size: 13px;
+    border-radius: var(--r-sm);
+  }
+  html body .lemma-app .sidebar .brand {
+    padding: var(--space-1) var(--space-2) var(--space-2);
+    margin-bottom: var(--space-1);
+  }
+  html body .lemma-app .sidebar .new-note {
+    margin-bottom: var(--space-1);
+  }
+  html body .lemma-app .sidebar .search-field {
+    margin: var(--space-2) 0 var(--space-1);
+  }
+  html body .lemma-app .sidebar .notes-label {
+    height: var(--control-height-sm);
+    margin-top: var(--space-2);
+    padding: 0 var(--space-2);
+    font-size: 11px;
+  }
+  html body .lemma-app .sidebar .notes-list {
+    gap: 0;
+  }
+  html
+    body
+    .lemma-app
+    .sidebar.density-compact
+    :is(.side-link, .tree-note, .folder-link, .folder-tree-row) {
+    height: var(--control-height-sm);
+    min-height: var(--control-height-sm);
+  }
+  html body .lemma-app .home-actions .home-action {
+    height: var(--control-height);
+    padding: 0 var(--space-3);
+    font-size: 13px;
+  }
+  html body .lemma-app :is(.home-head, .home-grid) {
+    margin-bottom: var(--space-6);
+    gap: var(--space-6);
+  }
+  html body .lemma-app .home-note {
+    min-height: 56px;
+    padding: var(--space-3);
+  }
+  html
+    body
+    .lemma-app
+    :is(.icon-button, .new-note, .editor-toolbar button):is(:hover, :active)
+    svg {
+    transform: none;
+  }
+  html
+    body
+    :is(
+      [data-slot="dropdown-menu-content"],
+      [data-slot="context-menu-content"],
+      [data-slot="select-content"]
+    ) {
+    padding: var(--space-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--popover);
+    color: var(--popover-foreground);
+    font-family: var(--font-ui);
+    box-shadow: 0 4px 16px #00000014;
+  }
+  html
+    body
+    :is([data-slot="dropdown-menu-content"], [data-slot="context-menu-content"])
+    :is([role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]),
+  html body [data-slot="select-content"] [role="option"] {
+    min-height: var(--control-height-sm);
+    padding-top: 6px;
+    padding-bottom: 6px;
+    font-size: 13px;
+    line-height: 16px;
+    gap: var(--space-2);
+    border-radius: var(--r-sm, 4px);
+  }
+  html
+    body
+    :is([data-slot="dropdown-menu-content"], [data-slot="context-menu-content"])
+    [role="menuitem"] {
+    padding-left: var(--space-2);
+    padding-right: var(--space-2);
+  }
+  html
+    body
+    :is([data-slot="dropdown-menu-content"], [data-slot="context-menu-content"])
+    [role="separator"] {
+    margin: var(--space-1) 0;
+  }
+  html body .preferences-dialog :is(.preferences-header, .preferences-footer) {
+    padding: var(--space-4) var(--space-6);
+  }
+  html body .preferences-dialog .preferences-content {
+    padding: var(--space-6);
+  }
+  html body .preferences-dialog :is(.preferences-header h2, .preferences-content h2) {
+    font-family: var(--font-ui);
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+  html body .preferences-dialog .preferences-content h3 {
+    margin: var(--space-6) 0 var(--space-2);
+    font-size: 12px;
+  }
+  html body .preferences-dialog .preference-row {
+    min-height: 48px;
+    gap: var(--space-4);
+    padding: var(--space-2) 0;
+    font-size: 13px;
+  }
+  html body .preferences-dialog .preference-row :is(input, [role="combobox"]) {
+    height: var(--control-height);
+    font-size: 13px;
+  }
+  html body .preferences-dialog .preferences-layout nav button {
+    height: var(--control-height);
+    padding: 0 var(--space-2);
+    gap: var(--space-2);
+    font-size: 13px;
+    border-radius: var(--r-sm);
+  }
+  html body .preferences-dialog .theme-choice {
+    min-height: 96px;
+    font-size: 13px;
+  }
+  html body .lemma-app .caret-block-menu {
+    padding: var(--space-1);
+    border-radius: var(--r-md) !important;
+  }
+  html body .lemma-app .caret-block-menu > button {
+    min-height: var(--control-height);
+    padding: var(--space-1) var(--space-2);
+    gap: var(--space-2);
+    font-size: 13px;
+  }
+  html body .lemma-app .caret-block-menu .slash-search {
+    margin: var(--space-1);
+    top: 0;
+  }
+  @media (max-width: 1100px) {
+    html body .study-workspace .workspace-header .space-switcher button span,
+    .workspace-note-save,
+    .workspace-note-actions .workspace-control-label {
+      display: none !important;
+    }
+  }
+  @media (max-width: 680px) {
+    html body .study-workspace .workspace-note-breadcrumb {
+      display: none;
+    }
+    html body .study-workspace .workspace-note-actions > .workspace-focus-action {
+      display: none;
+    }
+    html body .study-workspace .workspace-header {
+      padding: 0 var(--space-2);
+      gap: var(--space-1);
+    }
+    html body .study-workspace .workspace-note-actions > button {
+      width: var(--control-height-sm);
+      padding: 0;
+    }
+    html body .study-workspace .workspace-note-actions .workspace-mode :is(span, svg:last-child) {
+      display: none;
+    }
+    html body .preferences-dialog .preferences-layout {
+      flex-direction: column;
+    }
+    html body .preferences-dialog .preferences-layout nav {
+      display: flex;
+      flex: none;
+      width: 100%;
+      gap: var(--space-1);
+      padding: var(--space-2);
+      overflow-x: auto;
+      overflow-y: hidden;
+      border-right: 0;
+      border-bottom: 1px solid var(--line);
+    }
+    html body .preferences-dialog .preferences-layout nav button {
+      flex: none;
+      width: auto;
+      margin: 0;
+      white-space: nowrap;
+    }
+    html body .preferences-dialog .preferences-content {
+      padding: var(--space-4);
+    }
+    html body .preferences-dialog .preference-row:has([role="combobox"]) {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    html body .preferences-dialog .preference-row [role="combobox"] {
+      width: 100%;
+    }
+    html body .preferences-dialog .preference-row {
+      flex-wrap: wrap;
+      gap: var(--space-2);
+    }
+  }
+}
+
+@media screen and (max-width: 360px) {
+  html body .study-workspace .workspace-note-actions > .workspace-share {
+    display: none;
+  }
+}
+
+/* Flashcards keep the deck controls in place while the card list scrolls. */
+@media screen {
+  .lemma-app .flashcards,
+  .lemma-app .flashcards > .space-main {
+    min-height: 0;
+  }
+  html body .lemma-app .flashcards {
+    overflow: hidden;
+  }
+  html body .lemma-app .flashcards > .space-main {
+    flex: 1 1 0%;
+    height: 100%;
+    max-height: 100%;
+    overflow: auto;
+  }
+  .flashcards > .space-main > :not(.card-list) {
+    flex-shrink: 0;
+  }
+  html body .lemma-app .flashcards .card-list {
+    flex: 1 1 auto;
+    min-height: 160px;
+    overflow-y: auto;
+    overscroll-behavior-y: auto;
+    scrollbar-gutter: stable;
+  }
+  html body .lemma-app .flashcards .card-list li {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px 28px 28px;
+  }
+}
+.card-import-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(720px, calc(100vw - 24px));
+  max-width: none;
+  max-height: calc(100dvh - 32px);
+  gap: var(--space-4);
+  border-radius: var(--r-lg, 8px);
+  font-family: var(--font-ui);
+}
+.card-import-body {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: 2px;
+}
+.card-import-dialog :is(label, p) {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.card-import-file,
+.card-import-text,
+.card-import-options label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.card-import-file input {
+  height: auto;
+  padding: var(--space-2);
+}
+.card-import-file p,
+.card-import-dialog .space-hint {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.card-import-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.card-import-text textarea {
+  min-height: 120px;
+  max-height: 240px;
+  font-size: 13px;
+}
+.card-import-error {
+  color: var(--destructive-ink, #b42318);
+}
+.card-import-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.card-import-preview table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.card-import-preview :is(th, td) {
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.card-import-preview th {
+  background: var(--control-muted);
+  font-weight: 500;
+}
+.card-import-dialog [role="tab"] {
+  gap: var(--space-2);
+}
+@media (max-width: 600px) {
+  .card-import-dialog {
+    padding: var(--space-4);
+  }
+  .card-import-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  html body .lemma-app .flashcards .card-list li {
+    grid-template-columns: minmax(0, 1fr) 28px 28px;
+    gap: var(--space-2);
+  }
+  .flashcards .card-list li > span {
+    grid-column: 1;
+  }
+  .flashcards .card-list li > span:nth-child(2) {
+    grid-row: 2;
+  }
+  .flashcards .card-list li > button {
+    grid-row: 1 / span 2;
+  }
+  .flashcards .card-list li > button:first-of-type {
+    grid-column: 2;
+  }
+  .flashcards .card-list li > button:last-of-type {
+    grid-column: 3;
+  }
+  .flashcards .card-list li > em {
+    display: none;
+  }
+}
+
+/* Tool sidebars share the same device settings and theme controls as Notes. */
+.workspace-sidebar.has-preferences {
+  display: flex;
+  flex-direction: column;
+}
+.workspace-sidebar.has-preferences[hidden] {
+  display: none;
+}
+html body .study-workspace .workspace-sidebar.has-preferences > .space-rail {
+  order: 1;
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+.workspace-sidebar-preferences {
+  order: 2;
+  flex: none;
+  padding: var(--space-2);
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.workspace-sidebar-preferences > button {
+  justify-content: flex-start;
+  gap: var(--space-2);
+  height: var(--control-height);
+  color: var(--muted);
+}
+.workspace-sidebar-preferences > p {
+  font-size: 12px;
+}
+
+/* Legacy unlayered button resets must not erase portalled shadcn controls. */
+[data-slot="button"][data-variant="default"] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+[data-slot="button"][data-variant="outline"] {
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--foreground);
+}
+[data-slot="button"][data-variant="outline"]:hover {
+  background: var(--control-accent);
+}
+[data-slot="select-trigger"] {
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
+  background: transparent;
+}
+.card-import-text textarea {
+  box-shadow: none;
+}

@@ -1,3 +1,5 @@
+import { Input } from "@/components/ui/input";
+import { WorkspaceSelect } from "@/components/ui/workspace-select";
 import { Switch } from "@/components/ui/switch";
 import { useState, type ReactNode } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -90,7 +92,7 @@ function NumberField({
   onChange: (v: number) => void;
 }) {
   return (
-    <input
+    <Input
       aria-label={label}
       type="number"
       min={min}
@@ -133,6 +135,7 @@ export function Settings({
   email,
   saved,
   onSignOut,
+  scope = "note",
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -144,6 +147,7 @@ export function Settings({
   email?: string;
   saved: string;
   onSignOut: () => void;
+  scope?: "note" | "device";
 }) {
   const [tab, setTab] = useState("General");
   const set = <K extends keyof Preferences>(key: K, value: Preferences[K]) =>
@@ -185,17 +189,19 @@ export function Settings({
           </header>
           <div className="preferences-layout">
             <nav aria-label="Settings categories">
-              {tabs.map(([name, Icon]) => (
-                <Button
-                  variant="ghost"
-                  key={name}
-                  className={tab === name ? "selected" : ""}
-                  onClick={() => setTab(name)}
-                >
-                  <Icon />
-                  {name}
-                </Button>
-              ))}
+              {tabs
+                .filter(([name]) => scope !== "device" || (name !== "Sync" && name !== "Account"))
+                .map(([name, Icon]) => (
+                  <Button
+                    variant="ghost"
+                    key={name}
+                    className={tab === name ? "selected" : ""}
+                    onClick={() => setTab(name)}
+                  >
+                    <Icon />
+                    {name}
+                  </Button>
+                ))}
             </nav>
             <section className="preferences-content">
               <h2>{tab}</h2>
@@ -203,14 +209,15 @@ export function Settings({
                 <>
                   <h3>Workspace</h3>
                   <Row title="Open Lemma to">
-                    <select
-                      aria-label="Startup screen"
+                    <WorkspaceSelect
+                      label="Startup screen"
                       value={p.startup}
-                      onChange={(e) => set("startup", e.target.value)}
-                    >
-                      <option value="workspace">All notes</option>
-                      <option value="last">Last opened note</option>
-                    </select>
+                      onChange={(value) => set("startup", value)}
+                      options={[
+                        { value: "workspace", label: "All notes" },
+                        { value: "last", label: "Last opened note" },
+                      ]}
+                    />
                   </Row>
                   <Row title="Sidebar width">
                     <NumberField
@@ -259,14 +266,15 @@ export function Settings({
                   </div>
                   <h3>Navigation</h3>
                   <Row title="Interface density">
-                    <select
-                      aria-label="Interface density"
+                    <WorkspaceSelect
+                      label="Interface density"
                       value={p.density}
-                      onChange={(e) => set("density", e.target.value)}
-                    >
-                      <option value="comfortable">Comfortable</option>
-                      <option value="compact">Compact</option>
-                    </select>
+                      onChange={(value) => set("density", value)}
+                      options={[
+                        { value: "comfortable", label: "Comfortable" },
+                        { value: "compact", label: "Compact" },
+                      ]}
+                    />
                   </Row>
                   <Row title="Show note icons">{toggle("showIcons", "Show note icons")}</Row>
                 </>
@@ -275,15 +283,16 @@ export function Settings({
                 <>
                   <h3>Typography</h3>
                   <Row title="Document typeface">
-                    <select
-                      aria-label="Document typeface"
+                    <WorkspaceSelect
+                      label="Document typeface"
                       value={p.font}
-                      onChange={(e) => set("font", e.target.value)}
-                    >
-                      <option value="serif">Textbook · Computer Modern</option>
-                      <option value="sans">Default · System sans</option>
-                      <option value="mono">Monospace</option>
-                    </select>
+                      onChange={(value) => set("font", value)}
+                      options={[
+                        { value: "serif", label: "Textbook · Computer Modern" },
+                        { value: "sans", label: "Default · System sans" },
+                        { value: "mono", label: "Monospace" },
+                      ]}
+                    />
                   </Row>
                   <Row title="Text size">
                     <NumberField
@@ -322,16 +331,17 @@ export function Settings({
                     <span>A4 · 210 × 297 mm</span>
                   </Row>
                   <Row title="Page direction">
-                    <select
-                      aria-label="Page direction"
+                    <WorkspaceSelect
+                      label="Page direction"
                       value={p.pageDirection}
-                      onChange={(e) =>
-                        set("pageDirection", e.target.value as Preferences["pageDirection"])
+                      onChange={(value) =>
+                        set("pageDirection", value as Preferences["pageDirection"])
                       }
-                    >
-                      <option value="vertical">Vertical · scroll down</option>
-                      <option value="horizontal">Horizontal · scroll across</option>
-                    </select>
+                      options={[
+                        { value: "vertical", label: "Vertical · scroll down" },
+                        { value: "horizontal", label: "Horizontal · scroll across" },
+                      ]}
+                    />
                   </Row>
                   <Row title="Orientation">
                     <span>Portrait</span>
