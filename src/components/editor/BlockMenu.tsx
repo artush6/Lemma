@@ -2,9 +2,24 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import type { Editor } from "@tiptap/react";
 
-export default function BlockMenu({ editor, children }: { editor: Editor; children: ReactNode }) {
+export default function BlockMenu({
+  editor,
+  children,
+  onClose,
+}: {
+  editor: Editor;
+  children: ReactNode;
+  onClose: () => void;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const reduced = useReducedMotion();
+  useLayoutEffect(() => {
+    const dismiss = (event: PointerEvent) => {
+      if (event.target instanceof Node && !ref.current?.contains(event.target)) onClose();
+    };
+    document.addEventListener("pointerdown", dismiss, true);
+    return () => document.removeEventListener("pointerdown", dismiss, true);
+  }, [onClose]);
   const [position, setPosition] = useState({ left: 16, top: 0, maxHeight: 0 });
   useLayoutEffect(() => {
     const element = ref.current;

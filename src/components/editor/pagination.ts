@@ -165,6 +165,7 @@ export const A4Pagination = Extension.create({
         },
         view: (view) => {
           let frame = 0;
+          let destroyed = false;
           const updateSheets = () => {
             const doc = view.dom.closest(".document") as HTMLElement | null;
             if (!doc) return;
@@ -215,9 +216,11 @@ export const A4Pagination = Extension.create({
             if (totalLabel) totalLabel.textContent = String(count);
           };
           const run = () => {
+            if (destroyed) return;
             cancelAnimationFrame(frame);
             frame = requestAnimationFrame(() => {
-              if (!view.dom.isConnected) return;
+              if (destroyed || !view.dom.isConnected || !view.dom.getBoundingClientRect().width)
+                return;
               const next = measurePageSpacers(view);
               if (!same(next, key.getState(view.state) || {}))
                 view.dispatch(view.state.tr.setMeta(key, next).setMeta("addToHistory", false));
@@ -238,6 +241,7 @@ export const A4Pagination = Extension.create({
           return {
             update: () => run(),
             destroy: () => {
+              destroyed = true;
               timers.forEach(clearTimeout);
               cancelAnimationFrame(frame);
               ro?.disconnect();

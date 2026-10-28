@@ -21,6 +21,7 @@ import type { User } from "@supabase/supabase-js";
 import type { LucideIcon } from "lucide-react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { loadDocument } from "./loadDocument";
+import { useDocumentSync } from "./useDocumentSync";
 import { subscribeEditorSession } from "./editorSession";
 import { ExportDialog } from "./ExportDialog";
 import { draftStorage } from "@/lib/draftStorage";
@@ -44,6 +45,15 @@ import {
   Code2,
   Heading1,
   Heading2,
+  Heading3,
+  Heading4,
+  Columns2,
+  Columns3,
+  FileUp,
+  ChevronRight as ToggleIcon,
+  Image as ImageIcon,
+  MessageSquare,
+  ChartLine,
   List,
   ListOrdered,
   ListTodo,
@@ -142,26 +152,26 @@ const commandShortcuts: Record<string, string> = {
   Graph: "/graph",
   "Code block": "⌘⌥C",
 };
-const commandIcon = [
-  "Ⅱ",
-  "Ⅲ",
-  "↗",
-  "T",
-  "H1",
-  "H2",
-  "H3",
-  "H4",
-  "▸",
-  "▧",
-  "•",
-  "1.",
-  "☑",
-  "❝",
-  "▧",
-  "—",
-  "∑",
-  "⌁",
-  "</>",
+const commandIcons = [
+  Columns2,
+  Columns3,
+  FileUp,
+  Type,
+  Heading1,
+  Heading2,
+  Heading3,
+  Heading4,
+  ToggleIcon,
+  ImageIcon,
+  List,
+  ListOrdered,
+  ListTodo,
+  Quote,
+  MessageSquare,
+  Minus,
+  Sigma,
+  ChartLine,
+  Code2,
 ];
 const ownerStoragePrefix = (ownerId: string | undefined | null) => `lemma:${ownerId || "local"}:`;
 const draftStorageKey = (ownerId: string | undefined | null, id: string) =>
@@ -550,6 +560,10 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
       handleKeyDown: (view, event) => {
         if (
           event.key === "/" &&
+          !event.isComposing &&
+          !event.metaKey &&
+          !event.ctrlKey &&
+          !event.altKey &&
           preferences.slashCommands &&
           view.editable &&
           view.state.selection.empty &&
@@ -557,6 +571,7 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
           view.state.selection.$from.parent.textContent.trim() === ""
         ) {
           event.preventDefault();
+          view.dispatch(view.state.tr.insertText("/"));
           setMenuIndex(0);
           setSlashFilter("");
           setMenu(true);
@@ -901,23 +916,23 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
     window.addEventListener("keydown", onDemoKey);
     return () => window.removeEventListener("keydown", onDemoKey);
   }, [editor]);
-  const loadedNoteId = useRef<string | null>(null);
+  const continuousContent = useMemo(() => (active ? documentContent(active) : null), [active]);
+  useDocumentSync(editor, active?.id, continuousContent, lastEditorContent);
+  const editorActive = workspace?.active ?? true;
   useEffect(() => {
-    const page = activePage;
-    if (!editor || !page) return;
-    const frame = requestAnimationFrame(() => {
-      const content = active ? documentContent(active) : page.content;
-      if (
-        loadedNoteId.current !== active?.id ||
-        lastEditorContent.current !== JSON.stringify(content)
-      ) {
-        loadDocument(editor, content);
-        lastEditorContent.current = JSON.stringify(content);
-        loadedNoteId.current = active?.id || null;
-      }
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [editor, active?.id, activePageId, activePage]);
+    if (!editorActive) {
+      setMenu(false);
+      setSearchOpen(false);
+      setHistoryOpen(false);
+      setExportOpen(false);
+      setSettingsOpen(false);
+      setSnipQuery("");
+      setAttachmentPicker(false);
+      attachmentTarget.current?.dispose();
+      attachmentTarget.current = null;
+      editor?.view.dom.dispatchEvent(new Event("lemma:deactivate"));
+    }
+  }, [editor, editorActive]);
   useEffect(() => {
     if (editor) editor.view.dom.spellcheck = preferences.spellcheck;
   }, [editor, preferences.spellcheck]);
@@ -1050,12 +1065,12 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
         if (e.key === "Escape") {
           e.preventDefault();
           setMenu(false);
-          editor.commands.focus();
+          editor.commands.focus(undefined, { scrollIntoView: false });
           return;
         }
         if (e.key === "ArrowDown") {
           e.preventDefault();
-          setMenuIndex((i) => Math.min(i + 1, filteredCommands.length - 1));
+          setMenuIndex((i) => Math.max(0, Math.min(i + 1, filteredCommands.length - 1)));
           return;
         }
         if (e.key === "ArrowUp") {
@@ -1065,7 +1080,7 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
         }
         if (e.key === "Enter" && filteredCommands.length) {
           e.preventDefault();
-          runCommandRef.current(filteredCommands[menuIndex]);
+          runCommandRef.current(filteredCommands[Math.min(menuIndex, filteredCommands.length - 1)]);
           return;
         }
       }
@@ -2932,7 +2947,9 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
                 }}
               >
                 <EditorContent editor={editor} />
-                {!preview && !sharedView && <SelectionMenu editor={editor} />}
+                {!preview && !sharedView && !menu && (!workspace || workspace.active) && (
+                  <SelectionMenu editor={editor} />
+                )}
                 {attachmentPicker && (
                   <AttachmentPicker
                     onLink={(url) => {
@@ -2971,7 +2988,7 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
                     }}
                   />
                 )}
-                {!preview && !sharedView && (
+                {!preview && !sharedView && (!workspace || workspace.active) && (
                   <BlockControls
                     editor={editor}
                     onInsert={() => {
@@ -2982,7 +2999,7 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
                   />
                 )}
                 {menu && (
-                  <BlockMenu editor={editor}>
+                  <BlockMenu editor={editor} onClose={() => setMenu(false)}>
                     <label className="slash-search">
                       <Search size={16} />
                       <input
@@ -3010,7 +3027,12 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => runCommand(c)}
                       >
-                        <span className="slash-icon">{commandIcon[commands.indexOf(c)]}</span>
+                        <span className="slash-icon" aria-hidden="true">
+                          {(() => {
+                            const Icon = commandIcons[commands.indexOf(c)];
+                            return <Icon size={16} />;
+                          })()}
+                        </span>
                         <span>{c}</span>
                         <kbd>{commandShortcuts[c]}</kbd>
                       </Button>

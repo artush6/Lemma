@@ -188,8 +188,8 @@ function sourceIndexFromPreview(
   }
   return found < 0 ? null : found + token.length;
 }
-function EquationSurface({ expanded, block, input, onClose, children }) {
-  const container = document.querySelector(".lemma-app");
+function EquationSurface({ expanded, block, input, onClose, children, editor }) {
+  const container = editor.view.dom.closest(".lemma-app");
   const focus = (event) => {
     event.preventDefault();
     input.current?.focus();
@@ -238,6 +238,16 @@ function EquationView({ node, updateAttributes, editor }: NodeViewProps) {
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [value, setValue] = useState(String(node.attrs.latex || ""));
+  useEffect(() => {
+    const close = () => {
+      if (editing && editor.isEditable) updateAttributes({ latex: value });
+      setEditing(false);
+      setExpanded(false);
+    };
+    const dom = editor.view.dom;
+    dom.addEventListener("lemma:deactivate", close);
+    return () => dom.removeEventListener("lemma:deactivate", close);
+  }, [editor, editing, value, updateAttributes]);
   const [query, setQuery] = useState("");
   const [suggestIndex, setSuggestIndex] = useState(0);
   const [fields, setFields] = useState<[number, number][]>([]);
@@ -306,6 +316,7 @@ function EquationView({ node, updateAttributes, editor }: NodeViewProps) {
         {editing && (
           <EquationSurface
             expanded={expanded}
+            editor={editor}
             block={block}
             input={input}
             onClose={() => setEditing(false)}

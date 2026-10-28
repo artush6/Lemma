@@ -168,6 +168,12 @@ export function GraphView({ node, updateAttributes, selected, editor }: NodeView
   const target = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   useEffect(() => {
+    const close = () => setOpen(false);
+    const dom = editor.view.dom;
+    dom.addEventListener("lemma:deactivate", close);
+    return () => dom.removeEventListener("lemma:deactivate", close);
+  }, [editor]);
+  useEffect(() => {
     if (!editable) setOpen(false);
   }, [editable]);
   const [focusRow, setFocusRow] = useState<number | null>(null);

@@ -8,7 +8,13 @@ export function SelectionMenu({ editor }: { editor: Editor }) {
   const reduced = useReducedMotion();
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
   useEffect(() => {
+    const dom = editor.view.dom;
+    let frame = 0;
     const update = () => {
+      if (editor.isDestroyed || !dom.getBoundingClientRect().width) {
+        setPosition(null);
+        return;
+      }
       const { from, to, empty } = editor.state.selection;
       if (
         !(editor.state.selection instanceof TextSelection) ||
@@ -28,20 +34,26 @@ export function SelectionMenu({ editor }: { editor: Editor }) {
         top: top > 64 ? top - 48 : Math.max(a.bottom, b.bottom) + 8,
       });
     };
-    const focus = () => requestAnimationFrame(update);
+    const focus = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(update);
+    };
     editor.on("selectionUpdate", update);
     editor.on("blur", update);
     editor.on("focus", update);
     editor.on("transaction", update);
     window.addEventListener("scroll", update, true);
-    editor.view.dom.addEventListener("mouseup", focus);
+    window.addEventListener("resize", update);
+    dom.addEventListener("mouseup", focus);
     return () => {
+      cancelAnimationFrame(frame);
       editor.off("selectionUpdate", update);
       editor.off("blur", update);
       editor.off("focus", update);
       editor.off("transaction", update);
       window.removeEventListener("scroll", update, true);
-      editor.view.dom.removeEventListener("mouseup", focus);
+      window.removeEventListener("resize", update);
+      dom.removeEventListener("mouseup", focus);
     };
   }, [editor]);
   const actions = [

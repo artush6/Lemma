@@ -45,7 +45,10 @@ export function BlockControls({ editor, onInsert }: { editor: Editor; onInsert: 
   const previousSelection = useRef<{ from: number; to: number } | null>(null);
   useEffect(() => {
     const update = (event?: MouseEvent) => {
-      if (!editor.isEditable) return;
+      if (!editor.isEditable || !editor.view.dom.getBoundingClientRect().width) {
+        setBlock(null);
+        return;
+      }
       let pos = editor.state.selection.from;
       if (event) {
         const found = editor.view.posAtCoords({ left: event.clientX, top: event.clientY });
@@ -63,6 +66,11 @@ export function BlockControls({ editor, onInsert }: { editor: Editor; onInsert: 
       const el = editor.view.nodeDOM(start);
       if (!(el instanceof HTMLElement)) return;
       const rect = el.getBoundingClientRect();
+      const viewport = editor.view.dom.closest(".doc-scroll")?.getBoundingClientRect();
+      if (viewport && (rect.bottom <= viewport.top || rect.top >= viewport.bottom)) {
+        setBlock(null);
+        return;
+      }
       setBlock({ pos: start, top: rect.top, left: Math.max(4, rect.left - 54) });
     };
     const hover = (e: MouseEvent) => {
@@ -73,13 +81,13 @@ export function BlockControls({ editor, onInsert }: { editor: Editor; onInsert: 
     };
     editor.view.dom.addEventListener("mousemove", hover);
     editor.on("selectionUpdate", refresh);
-    editor.on("update", refresh);
+    editor.on("transaction", refresh);
     window.addEventListener("scroll", refresh, true);
     window.addEventListener("resize", refresh);
     return () => {
       editor.view.dom.removeEventListener("mousemove", hover);
       editor.off("selectionUpdate", refresh);
-      editor.off("update", refresh);
+      editor.off("transaction", refresh);
       window.removeEventListener("scroll", refresh, true);
       window.removeEventListener("resize", refresh);
     };

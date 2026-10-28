@@ -4,6 +4,20 @@ One dated section per commit, newest first. Changes belonging to the same commit
 
 The older per-file entries below were consolidated by their actual commits. Their detailed evidence and historical limitations are retained. Git history remains the source of the exact diff.
 
+<a id="editor-caret-and-overlay-fixes"></a>
+
+## 2026-10-28 — Stabilize typing, slash insertion and editor overlays
+
+Document synchronization now runs before paint through `useDocumentSync`. Previously a queued animation frame could retain an older document snapshot and replace newer input, resetting the caret and undo history. Local content echoes skip replacement; changing note identity still starts an isolated undo history. Legacy pages remain continuous and normalize only on edits.
+
+Typing `/` on an empty line now inserts a literal slash and opens the block menu. Escape, clicking elsewhere and choosing a command leave that character in the note. The menu keeps its separate search field; modified shortcuts and composing input do not trigger slash interception. Empty search results can no longer produce a negative keyboard index. Nineteen matching Lucide icons replace font-dependent text glyphs in the insertion menu. For example, type `/`, search “heading”, then Enter to turn that line into a heading while retaining `/`.
+
+Inactive notes close their insertion/search/history/export/settings/attachment controls and equation/graph panels. Equation source is applied before its panel closes on a workspace switch. Equation portals now belong to their own editor's theme container instead of the first `.lemma-app` on the page. Selection controls mount only for the active note, hide while the insertion menu is open, respond to resizing and cancel deferred mouse-up work on unmount. Block grips hide when their target is outside the scroll viewport and refresh after pagination transactions. Hidden editors retain pagination spacers; destroyed editors cannot schedule delayed font-ready measurements. These fixes preserve cached editor identity and printable A4 dimensions.
+
+Verification: 86 tests across 19 files passed in the complete working tree, including document load/selection/undo isolation and outside-menu dismissal regressions. Before publication, an isolated snapshot containing only this editor commit passed 77 tests across 19 files, type checking and production build, independently of the uncommitted workspace split changes. Type checking, reachability (106 modules / 26 roots), focused typed-module lint and production build passed. The touched legacy Editor/nodes/graph modules retain their existing lint errors; no lint rules were weakened. Browser checks used production components with synthetic local notes and stubbed auth/repository methods: literal slash insertion, Escape and outside dismissal, 19 SVG command icons, zero-results keyboard recovery, continuous typing, a five-page note retaining its end caret, and equation editing → Flashcards → Notes with source retained and no stale popup. The 390px view had document scrollWidth 390px. Live auth/cloud/history/shares, screen readers, physical touch, native PDF rendering, print output and deployment remain unverified.
+
+No dependency, SQL, authorization, route or persisted note/layout format changes. Existing workspace split work in the checkout was preserved. Roll back these editor changes with a normal revert; no data migration or published-history rewrite is required.
+
 <a id="shared-left-sidebar"></a>
 
 ## 2026-10-26 — Use one sidebar at the far left of the workspace
