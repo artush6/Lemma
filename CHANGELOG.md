@@ -4,6 +4,20 @@ One dated section per commit, newest first. Changes belonging to the same commit
 
 The older per-file entries below were consolidated by their actual commits. Their detailed evidence and historical limitations are retained. Git history remains the source of the exact diff.
 
+<a id="equation-focus-and-study-responses"></a>
+
+## 2026-10-30 — Focus new equations and write flashcard responses
+
+New equations open their LaTeX source with the caret ready for typing. Previously Cmd/Ctrl+Shift+M inserted an empty placeholder requiring another click. Cmd/Ctrl+M (inline), Cmd/Ctrl+Shift+M or Shift+E (block), equation insertion menus and `$$` on an empty line now select the new equation and open its existing themed popover. For example, press Cmd+Shift+M, type `x^2`, then Cmd+Enter to apply. A shared insertion command preserves surrounding text and undo while using selection to trigger editing; no UI flags are stored in note JSON. Existing equations retain click-to-edit and expanded source editing.
+
+Removed the hidden `$` followed by `\` demonstration-typography shortcut, which consumed the dollar/backslash while typing mathematics. Typing `$\alpha` now retains that text and surrounding content. Demonstration typography remains available from its toolbar button; the obsolete shortcut tooltip is removed.
+
+Flashcard study now has an optional labeled **Your answer** multiline field below the existing question/expected-answer card. Write a response, reveal the expected answer in its original location, and compare manually with your response below. Reveal preserves the response; grading/advancing, changing card/account/deck or leaving study clears it. The field uses the shared Textarea and existing theme tokens/focus styling. Review shortcuts already ignore textarea input, so spaces, newlines and numbers remain typing. Responses stay in the mounted field only: no automatic comparison, scoring, export, storage or network transmission is added. Manual grading and existing schedules remain unchanged.
+
+Verification: `npm run test -- --reporter=dot` passed **105 tests / 26 files**, including insertion/undo/surrounding-text preservation and flashcard response reveal/reset/shortcut/storage regressions. `npm run typecheck`, `npm run check:unused` (120 modules / 33 roots), production build and changed-file formatting/diff checks passed. Focused ESLint passes for the new command/tests and Flashcards. The touched legacy Editor/nodes modules retain 19 existing lint errors and one existing hook warning; no rules were weakened. The test suite emits existing Workspace act warnings. Browser checks used the local production-component fixture with synthetic notes/cards and stubbed auth/repository: Cmd+Shift+M, Cmd+M and typed `$$` focused LaTeX immediately; typing without another click and applying worked; `$\alpha` preserved surrounding text; a multiline study response remained below the revealed expected answer in a narrow split pane. Live auth/cloud/history/sharing, full mobile/dark-mode/screen-reader coverage, print and deployment were not verified. The Playwright CLI registry lookup was unavailable; browser verification used the available in-app browser instead.
+
+No dependencies, routes, database/auth policies, persisted note/card formats or printable geometry changed. Roll back with a normal revert commit; no migration is required. Existing notes/cards remain compatible. The ephemeral written response is intentionally discarded when its review field unmounts.
+
 <a id="workspace-controls-and-card-imports"></a>
 
 ## 2026-10-28 — Scroll flashcard decks, import documents and unify workspace controls

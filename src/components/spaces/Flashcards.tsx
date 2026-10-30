@@ -6,7 +6,7 @@ import { useWorkspaceDialogs } from "@/components/ui/workspace-dialogs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { Plus, Layers, Trash2, Upload, Play, ArrowLeft, Pencil, Download } from "lucide-react";
 import { newCard, previewLabel, schedule, type Card, type Deck, type Grade } from "@/lib/srs";
 import { useStored } from "./store";
@@ -65,6 +65,7 @@ export default function Flashcards({
   const [deckId, setDeckId] = useState(decks[0]?.id);
   const [studying, setStudying] = useState(false);
   const [flipped, setFlipped] = useState(false);
+  const answerId = useId();
   const [front, setFront] = useState("");
   const [back, setBack] = useState("");
   const [importing, setImporting] = useState(false);
@@ -386,6 +387,10 @@ export default function Flashcards({
                   <span className="space-hint">Space to show answer</span>
                 )}
               </Button>
+              <div className="study-response" key={`${ownerId}:${deck?.id}:${current.id}`}>
+                <label htmlFor={answerId}>Your answer</label>
+                <Textarea id={answerId} placeholder="Write your answer here (optional)…" rows={4} />
+              </div>
               {flipped && (
                 <motion.div
                   className="grade-row"

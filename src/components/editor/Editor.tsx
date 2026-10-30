@@ -1,4 +1,5 @@
 // @ts-nocheck -- ported from the original Lemma codebase, which used looser type settings
+import { insertEquation } from "./insertEquation";
 import { SidebarPortal } from "../workspace/SidebarPortal";
 import { lazy, Suspense } from "react";
 import { HeaderPortal } from "../workspace/Workspace";
@@ -428,24 +429,9 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
         name: "lemmaMathShortcuts",
         addKeyboardShortcuts() {
           return {
-            "Mod-m": () =>
-              this.editor
-                .chain()
-                .focus()
-                .insertContent({ type: "inlineMath", attrs: { latex: "" } })
-                .run(),
-            "Mod-Shift-m": () =>
-              this.editor
-                .chain()
-                .focus()
-                .insertContent({ type: "mathBlock", attrs: { latex: "" } })
-                .run(),
-            "Mod-Shift-e": () =>
-              this.editor
-                .chain()
-                .focus()
-                .insertContent({ type: "mathBlock", attrs: { latex: "" } })
-                .run(),
+            "Mod-m": () => this.editor.chain().focus().command(insertEquation(true)).run(),
+            "Mod-Shift-m": () => this.editor.chain().focus().command(insertEquation(false)).run(),
+            "Mod-Shift-e": () => this.editor.chain().focus().command(insertEquation(false)).run(),
           };
         },
         addInputRules() {
@@ -472,7 +458,7 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
                     { type: "mathBlock", attrs: { latex: "" } },
                     { type: "paragraph" },
                   ])
-                  .setTextSelection(start + 2)
+                  .setNodeSelection(start)
                   .run();
               },
             }),
@@ -853,37 +839,6 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
     window.addEventListener("keydown", onGlobalKey);
     return () => window.removeEventListener("keydown", onGlobalKey);
   }, [focus, sharedView, space]);
-  useEffect(() => {
-    if (!editor) return;
-    let previous = "";
-    const onDemoKey = (e: KeyboardEvent) => {
-      if (workspaceRef.current && !workspaceRef.current.active) return;
-      if (
-        e.key === "\\" &&
-        previous === "$" &&
-        e.target instanceof HTMLElement &&
-        e.target.closest(".ProseMirror") &&
-        editor.state.selection.empty
-      ) {
-        const { from } = editor.state.selection;
-        if (from > 1 && editor.state.doc.textBetween(from - 1, from) === "$") {
-          e.preventDefault();
-          editor
-            .chain()
-            .focus()
-            .deleteRange({ from: from - 1, to: from })
-            .run();
-          setDemoMode((v) => {
-            localStorage.setItem("lemma:demo", String(!v));
-            return !v;
-          });
-        }
-      }
-      previous = e.key;
-    };
-    window.addEventListener("keydown", onDemoKey);
-    return () => window.removeEventListener("keydown", onDemoKey);
-  }, [editor]);
   const continuousContent = useMemo(() => (active ? documentContent(active) : null), [active]);
   useDocumentSync(editor, active?.id, continuousContent, lastEditorContent);
   const editorActive = workspace?.active ?? true;
@@ -1091,15 +1046,7 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
   const insertMath = useCallback(
     (inline: boolean) => {
       if (!editor) return;
-      editor
-        .chain()
-        .focus()
-        .insertContent(
-          inline
-            ? { type: "inlineMath", attrs: { latex: "" } }
-            : { type: "mathBlock", attrs: { latex: "" } },
-        )
-        .run();
+      editor.chain().focus().command(insertEquation(inline)).run();
     },
     [editor],
   );
@@ -2853,7 +2800,7 @@ export default function Editor({ workspace }: { workspace?: EmbeddedWorkspace } 
           <Button
             variant="ghost"
             className={demoMode ? "toolbar-selected" : ""}
-            title="Demonstration typography · type $\\ to toggle"
+            title="Demonstration typography"
             onClick={() =>
               setDemoMode((v) => {
                 localStorage.setItem("lemma:demo", String(!v));

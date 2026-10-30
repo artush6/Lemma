@@ -12131,3 +12131,27 @@ html body .study-workspace .workspace-sidebar.has-preferences > .space-rail {
 .card-import-text textarea {
   box-shadow: none;
 }
+
+/* Optional, transient response below the flashcard's expected answer. */
+.study-response {
+  width: min(640px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.study-response label {
+  color: var(--muted);
+  font-size: 13px;
+}
+.study-response textarea {
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  font: inherit;
+  resize: vertical;
+}
+.study-response textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

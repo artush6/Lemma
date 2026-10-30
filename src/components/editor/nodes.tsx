@@ -6,7 +6,7 @@ import {
   NodeViewWrapper,
   type NodeViewProps,
 } from "@tiptap/react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import katex from "katex";
 import { mapFieldRanges, latexArgumentRanges } from "./mathEditing";
 import { latexTokens } from "./latexTokens";
@@ -234,7 +234,7 @@ function EquationSurface({ expanded, block, input, onClose, children, editor }) 
     </Popover.Portal>
   );
 }
-function EquationView({ node, updateAttributes, editor }: NodeViewProps) {
+function EquationView({ node, updateAttributes, editor, selected }: NodeViewProps) {
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [value, setValue] = useState(String(node.attrs.latex || ""));
@@ -262,14 +262,18 @@ function EquationView({ node, updateAttributes, editor }: NodeViewProps) {
     pendingSelection.current = null;
   }, [value]);
   const matches = snippets.filter((s) => s.label.toLowerCase().startsWith(query.toLowerCase()));
-  const beginEdit = () => {
+  const beginEdit = useCallback(() => {
     const latex = String(node.attrs.latex || "");
     setValue(latex);
     setSelection(focusRange(latex, 0, 0) || { start: 0, end: 0 });
     setFields([]);
     setQuery("");
     setEditing(true);
-  };
+  }, [node.attrs.latex]);
+  useEffect(() => {
+    if (selected && editor.isEditable && !node.attrs.latex) beginEdit();
+    // Insertion selects the empty atom so its source field can receive focus.
+  }, [selected, editor, node.attrs.latex, beginEdit]);
   const block = node.type.name === "mathBlock";
   const EditorShell = "div";
   const LabelRow = "div";
